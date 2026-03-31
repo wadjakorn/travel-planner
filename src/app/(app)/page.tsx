@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getSession as auth } from "@/lib/get-session";
 import { getUserTrips } from "@/services/trip.service";
 import { redirect } from "next/navigation";
 import Link from "next/link";

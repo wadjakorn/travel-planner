@@ -10,8 +10,12 @@ import {
 } from "@/components/ui/card";
 
 export default async function LoginPage() {
-  const session = await auth();
+  // In bypass mode, skip straight to the app
+  if (process.env.AUTH_BYPASS === "true") {
+    redirect("/");
+  }
 
+  const session = await auth();
   if (session?.user) {
     redirect("/");
   }

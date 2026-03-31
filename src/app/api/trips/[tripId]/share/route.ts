@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getSession as auth } from "@/lib/get-session";
 import {
   getTripById,
   enableShareLink,

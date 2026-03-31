@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getSession as auth } from "@/lib/get-session";
 import { prisma } from "@/lib/prisma";
 import { updateSpot, deleteSpot } from "@/services/spot.service";
 import { NextResponse } from "next/server";

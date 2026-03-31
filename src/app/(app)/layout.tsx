@@ -1,4 +1,6 @@
-import { auth } from "@/lib/auth";
+import { getSession as auth } from "@/lib/get-session";
+
+export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 

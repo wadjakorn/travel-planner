@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getSession as auth } from "@/lib/get-session";
 import { getTripById } from "@/services/trip.service";
 import { redirect, notFound } from "next/navigation";
 import { TripView } from "@/components/trip/trip-view";
