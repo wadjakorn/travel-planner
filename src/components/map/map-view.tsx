@@ -32,7 +32,7 @@ export function MapView({ trip }: MapViewProps) {
       defaultZoom={mapZoom}
       gestureHandling="greedy"
       disableDefaultUI={false}
-      mapId={process.env.NEXT_PUBLIC_GOOGLE_MAP_ID}
+      mapId={process.env.NEXT_PUBLIC_GOOGLE_MAP_ID || "DEMO_MAP_ID"}
       onCameraChanged={(ev) => {
         setMapCenter(ev.detail.center);
         setMapZoom(ev.detail.zoom);

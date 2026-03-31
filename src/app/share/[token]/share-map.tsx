@@ -17,7 +17,7 @@ export function ShareMap({ trip, center }: ShareMapProps) {
         defaultCenter={center}
         defaultZoom={13}
         gestureHandling="greedy"
-        mapId={process.env.NEXT_PUBLIC_GOOGLE_MAP_ID}
+        mapId={process.env.NEXT_PUBLIC_GOOGLE_MAP_ID || "DEMO_MAP_ID"}
       >
         <MapPins trip={trip} />
       </Map>
