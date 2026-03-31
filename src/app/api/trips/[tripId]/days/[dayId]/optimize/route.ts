@@ -37,7 +37,14 @@ export async function POST(request: Request, { params }: RouteParams) {
   const mode: OptimizationMode =
     body.mode === "comfort" ? "comfort" : "time";
 
-  const result = await optimizeRoute(day.spots, mode);
+  let result;
+  try {
+    result = await optimizeRoute(day.spots, mode);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[optimize]", message);
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 
   // Persist the new spot order back to the DB
   await reorderSpots(result.orderedSpotIds);

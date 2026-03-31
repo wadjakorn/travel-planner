@@ -53,13 +53,16 @@ export async function optimizeRoute(
   const travelMode = mode === "comfort" ? "TRANSIT" : "DRIVE";
   const isDrive = travelMode === "DRIVE";
 
+  // optimizeWaypointOrder requires at least one intermediate waypoint
+  const canOptimize = isDrive && intermediates.length > 0;
+
   const body = {
     origin,
     destination,
     ...(intermediates.length > 0 ? { intermediates } : {}),
     travelMode,
     ...(isDrive ? { routingPreference: "TRAFFIC_AWARE" } : {}),
-    ...(isDrive ? { optimizeWaypointOrder: true } : {}),
+    ...(canOptimize ? { optimizeWaypointOrder: true } : {}),
     computeAlternativeRoutes: false,
     languageCode: "en-US",
   };
