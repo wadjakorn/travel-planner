@@ -27,6 +27,12 @@ interface DropdownRect {
   width: number;
 }
 
+interface Suggestion {
+  placeId: string;
+  mainText: string;
+  secondaryText: string;
+}
+
 const TYPE_KEYWORD_MAP: Array<{ keywords: string[]; type: SpotType }> = [
   { keywords: ["hotel", "motel", "hostel", "inn", "resort", "lodging"], type: "HOTEL" },
   { keywords: ["restaurant", "food", "meal", "diner", "bistro", "eatery", "bbq", "grill"], type: "RESTAURANT" },
@@ -46,23 +52,12 @@ function guessSpotType(types: string[], name: string): SpotType {
 export function AddSpotSearch({ onAdd }: AddSpotSearchProps) {
   const placesLib = useMapsLibrary("places");
   const [query, setQuery] = useState("");
-  const [predictions, setPredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [dropdownRect, setDropdownRect] = useState<DropdownRect | null>(null);
 
-  const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
-  const placesService = useRef<google.maps.places.PlacesService | null>(null);
   const inputWrapperRef = useRef<HTMLDivElement>(null);
-  const ghostMapRef = useRef<HTMLDivElement>(null);
-
-  // Bootstrap services once the library is loaded
-  useEffect(() => {
-    if (!placesLib) return;
-    autocompleteService.current = new placesLib.AutocompleteService();
-    if (ghostMapRef.current) {
-      placesService.current = new placesLib.PlacesService(ghostMapRef.current);
-    }
-  }, [placesLib]);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Measure the input position so the portal dropdown can be positioned correctly
   const measureInput = useCallback(() => {
@@ -75,28 +70,45 @@ export function AddSpotSearch({ onAdd }: AddSpotSearchProps) {
     });
   }, []);
 
-  // Fetch predictions as the user types
+  // Fetch autocomplete suggestions as the user types
   useEffect(() => {
-    if (!autocompleteService.current || query.length < 2) {
-      setPredictions([]);
+    if (!placesLib || query.length < 2) {
+      setSuggestions([]);
       setOpen(false);
       return;
     }
 
+    // Cancel any in-flight request
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+
     measureInput();
-    autocompleteService.current.getPlacePredictions(
-      { input: query },
-      (results, status) => {
-        if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-          setPredictions(results);
-          setOpen(true);
-        } else {
-          setPredictions([]);
-          setOpen(false);
-        }
+
+    (async () => {
+      try {
+        const { suggestions: raw } =
+          await placesLib.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+            input: query,
+          });
+
+        setSuggestions(
+          raw
+            .map((s) => s.placePrediction)
+            .filter(Boolean)
+            .map((p) => ({
+              placeId: p!.placeId,
+              mainText: p!.mainText?.toString() ?? "",
+              secondaryText: p!.secondaryText?.toString() ?? "",
+            }))
+        );
+        setOpen(true);
+      } catch {
+        // Aborted or API error — silently clear
+        setSuggestions([]);
+        setOpen(false);
       }
-    );
-  }, [query, measureInput]);
+    })();
+  }, [query, placesLib, measureInput]);
 
   // Re-measure on scroll/resize so the dropdown tracks the input
   useEffect(() => {
@@ -122,38 +134,36 @@ export function AddSpotSearch({ onAdd }: AddSpotSearchProps) {
     return () => document.removeEventListener("mousedown", handleMouseDown);
   }, []);
 
-  function selectPrediction(prediction: google.maps.places.AutocompletePrediction) {
-    if (!placesService.current) return;
+  async function selectSuggestion(suggestion: Suggestion) {
+    if (!placesLib) return;
 
-    placesService.current.getDetails(
-      {
-        placeId: prediction.place_id,
-        fields: ["name", "geometry", "formatted_address", "types", "place_id"],
-      },
-      (place, status) => {
-        if (
-          status !== google.maps.places.PlacesServiceStatus.OK ||
-          !place?.geometry?.location
-        ) return;
+    try {
+      const place = new placesLib.Place({ id: suggestion.placeId });
+      await place.fetchFields({
+        fields: ["displayName", "location", "formattedAddress", "types", "id"],
+      });
 
-        onAdd({
-          name: place.name ?? prediction.structured_formatting.main_text,
-          lat: place.geometry.location.lat(),
-          lng: place.geometry.location.lng(),
-          placeId: place.place_id ?? prediction.place_id,
-          address: place.formatted_address ?? "",
-          type: guessSpotType(place.types ?? [], place.name ?? ""),
-        });
+      if (!place.location) return;
 
-        setQuery("");
-        setPredictions([]);
-        setOpen(false);
-      }
-    );
+      onAdd({
+        name: place.displayName ?? suggestion.mainText,
+        lat: place.location.lat(),
+        lng: place.location.lng(),
+        placeId: place.id ?? suggestion.placeId,
+        address: place.formattedAddress ?? "",
+        type: guessSpotType(place.types ?? [], place.displayName ?? ""),
+      });
+
+      setQuery("");
+      setSuggestions([]);
+      setOpen(false);
+    } catch {
+      // Place fetch failed — ignore
+    }
   }
 
   const dropdown =
-    open && predictions.length > 0 && dropdownRect
+    open && suggestions.length > 0 && dropdownRect
       ? createPortal(
           <ul
             id="add-spot-dropdown"
@@ -166,24 +176,20 @@ export function AddSpotSearch({ onAdd }: AddSpotSearchProps) {
             }}
             className="rounded-md border bg-popover shadow-lg"
           >
-            {predictions.map((p) => (
-              <li key={p.place_id}>
+            {suggestions.map((s) => (
+              <li key={s.placeId}>
                 <Button
                   variant="ghost"
                   className="w-full justify-start rounded-none px-3 py-2 h-auto text-left"
                   onMouseDown={(e) => {
                     // Use mousedown (before blur) to capture the click
                     e.preventDefault();
-                    selectPrediction(p);
+                    selectSuggestion(s);
                   }}
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {p.structured_formatting.main_text}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {p.structured_formatting.secondary_text}
-                    </p>
+                    <p className="text-sm font-medium truncate">{s.mainText}</p>
+                    <p className="text-xs text-muted-foreground truncate">{s.secondaryText}</p>
                   </div>
                 </Button>
               </li>
@@ -195,9 +201,6 @@ export function AddSpotSearch({ onAdd }: AddSpotSearchProps) {
 
   return (
     <div ref={inputWrapperRef}>
-      {/* Ghost element required by PlacesService */}
-      <div ref={ghostMapRef} className="hidden" />
-
       <div className="relative flex-1">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -211,7 +214,7 @@ export function AddSpotSearch({ onAdd }: AddSpotSearchProps) {
             onMouseDown={(e) => {
               e.preventDefault();
               setQuery("");
-              setPredictions([]);
+              setSuggestions([]);
               setOpen(false);
             }}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
