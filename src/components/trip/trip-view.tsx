@@ -1,0 +1,52 @@
+"use client";
+
+import { useState } from "react";
+import { APIProvider } from "@vis.gl/react-google-maps";
+import type { TripWithDays } from "@/types";
+import { MapView } from "@/components/map/map-view";
+import { ItineraryPanel } from "@/components/itinerary/itinerary-panel";
+import { useTripQuery } from "@/hooks/use-trip";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { List } from "lucide-react";
+
+interface TripViewProps {
+  trip: TripWithDays;
+}
+
+export function TripView({ trip }: TripViewProps) {
+  const { data } = useTripQuery(trip.id, trip);
+  const liveTrip = data ?? trip;
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  return (
+    <APIProvider
+      apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? ""}
+      libraries={["places", "geometry"]}
+    >
+      <div className="flex h-full">
+        {/* Desktop sidebar */}
+        <div className="hidden w-96 shrink-0 overflow-y-auto border-r md:flex md:flex-col">
+          <ItineraryPanel trip={liveTrip} />
+        </div>
+
+        {/* Map fills the rest */}
+        <div className="relative flex-1">
+          <MapView trip={liveTrip} />
+
+          {/* Mobile: floating button to open itinerary Sheet */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 md:hidden">
+            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+              <SheetTrigger className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-lg hover:bg-primary/90">
+                <List className="h-4 w-4" />
+                Itinerary
+              </SheetTrigger>
+              <SheetContent side="bottom" className="h-[80vh] overflow-y-auto p-0">
+                <ItineraryPanel trip={liveTrip} />
+              </SheetContent>
+            </Sheet>
+          </div>
+        </div>
+      </div>
+    </APIProvider>
+  );
+}
