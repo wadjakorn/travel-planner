@@ -73,6 +73,28 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
+
+  /* Map pin tokens */
+  --map-pin-default: oklch(0.623 0.214 259.815);
+  --map-pin-hotel: oklch(0.7 0.15 150);
+  --map-pin-food: oklch(0.7 0.18 30);
+  --map-pin-attraction: oklch(0.65 0.2 330);
+  --map-pin-shopping: oklch(0.7 0.15 80);
+  --map-pin-transport: oklch(0.6 0.1 220);
+  --map-pin-custom: oklch(0.556 0 0);
+
+  /* Route tokens */
+  --map-route-optimized: oklch(0.6 0.2 260);
+  --map-route-comfortable: oklch(0.65 0.18 150);
+
+  /* Spacing scale */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
