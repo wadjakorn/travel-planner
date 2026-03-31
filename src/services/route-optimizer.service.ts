@@ -48,17 +48,18 @@ export async function optimizeRoute(
     },
   }));
 
+  // TRANSIT mode does not support routingPreference or optimizeWaypointOrder —
+  // both fields are only valid for DRIVE / TWO_WHEELER and cause a 400 if sent.
   const travelMode = mode === "comfort" ? "TRANSIT" : "DRIVE";
-  const routingPreference =
-    mode === "time" ? "TRAFFIC_AWARE" : "TRAFFIC_AWARE";
+  const isDrive = travelMode === "DRIVE";
 
   const body = {
     origin,
     destination,
-    intermediates,
+    ...(intermediates.length > 0 ? { intermediates } : {}),
     travelMode,
-    routingPreference,
-    optimizeWaypointOrder: true,
+    ...(isDrive ? { routingPreference: "TRAFFIC_AWARE" } : {}),
+    ...(isDrive ? { optimizeWaypointOrder: true } : {}),
     computeAlternativeRoutes: false,
     languageCode: "en-US",
   };
@@ -76,7 +77,8 @@ export async function optimizeRoute(
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Routes API error: ${error}`);
+    console.error(`Routes API ${response.status}:`, error);
+    throw new Error(`Routes API error ${response.status}: ${error}`);
   }
 
   const data = await response.json();
