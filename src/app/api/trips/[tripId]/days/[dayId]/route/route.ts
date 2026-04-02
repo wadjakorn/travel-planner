@@ -1,14 +1,19 @@
 import { getSession as auth } from "@/lib/get-session";
 import { getTripById } from "@/services/trip.service";
 import { computeRoute } from "@/services/route-optimizer.service";
-import { reorderSpots } from "@/services/spot.service";
-import { persistRouteLegs } from "@/services/route-cache.service";
+import {
+  isCacheValid,
+  buildRouteFromCache,
+  persistRouteLegs,
+} from "@/services/route-cache.service";
 import { NextResponse } from "next/server";
 import type { TravelMode } from "@/generated/prisma/client";
 
 interface RouteParams {
   params: Promise<{ tripId: string; dayId: string }>;
 }
+
+const VALID_TRAVEL_MODES: TravelMode[] = ["CAR", "WALK", "TRANSIT", "BICYCLE"];
 
 export async function POST(request: Request, { params }: RouteParams) {
   const session = await auth();
@@ -29,37 +34,39 @@ export async function POST(request: Request, { params }: RouteParams) {
 
   if (day.spots.length < 2) {
     return NextResponse.json(
-      { error: "Need at least 2 spots to optimize" },
+      { error: "Need at least 2 spots to compute a route" },
       { status: 400 }
     );
   }
 
   const body = await request.json().catch(() => ({}));
-  // "time" → CAR, "comfort" → TRANSIT (legacy mode names), or direct TravelMode
-  const rawMode = body.mode ?? "time";
-  const defaultMode: TravelMode =
-    rawMode === "comfort" ? "TRANSIT" : rawMode === "time" ? "CAR" : rawMode;
+  const rawMode = body.defaultMode ?? day.defaultTravelMode ?? "CAR";
+  const defaultMode: TravelMode = VALID_TRAVEL_MODES.includes(rawMode) ? rawMode : "CAR";
   const startPoint = body.startPoint ?? null;
   const endPoint = body.endPoint ?? null;
+  const force: boolean = body.force ?? false;
 
-  // Optimize always calls the Google API (no cache check)
+  // ── Serve from cache if valid ─────────────────────────────────────
+  if (!force && isCacheValid(day, startPoint, endPoint)) {
+    const cached = buildRouteFromCache(day, defaultMode, startPoint, endPoint);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+  }
+
+  // ── Compute fresh from Google Routes API ──────────────────────────
   let result;
   try {
-    result = await computeRoute(day.spots, { optimize: true, defaultMode, startPoint, endPoint });
+    result = await computeRoute(day.spots, { optimize: false, defaultMode, startPoint, endPoint });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[optimize]", message);
+    console.error("[show-route]", message);
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  // Persist the new spot order back to the DB (only when actually optimized)
-  if (result.wasOptimized && result.orderedSpotIds) {
-    await reorderSpots(result.orderedSpotIds);
-  }
-
-  // Persist leg cache (reordering clears old data, so persist after reorder)
+  // Persist asynchronously (don't block the response)
   persistRouteLegs(dayId, result).catch((e) =>
-    console.error("[optimize] persistRouteLegs failed:", e)
+    console.error("[show-route] persistRouteLegs failed:", e)
   );
 
   return NextResponse.json(result);

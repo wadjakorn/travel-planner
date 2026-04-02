@@ -3,10 +3,17 @@
   "configurations": [
     {
       "name": "Next.js dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-i", "-c", "npm run dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "Docker dev",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-i", "-c", "PATH=/Users/user/.rd/bin:$PATH docker compose up app"],
+      "port": 3000
     },
     {
       "name": "PostgreSQL (Docker)",

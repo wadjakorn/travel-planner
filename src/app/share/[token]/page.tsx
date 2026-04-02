@@ -2,6 +2,7 @@ import { getTripByShareToken } from "@/services/trip.service";
 import { notFound } from "next/navigation";
 import { ShareMap } from "./share-map";
 import type { TripWithDays } from "@/types";
+import { fmtDate, fmtDayLabel } from "@/lib/format-date";
 
 interface SharePageProps {
   params: Promise<{ token: string }>;
@@ -13,8 +14,8 @@ function ReadOnlyItinerary({ trip }: { trip: TripWithDays }) {
       <div className="border-b p-4">
         <h2 className="text-lg font-semibold">{trip.title}</h2>
         <p className="text-sm text-muted-foreground">
-          {new Date(trip.startDate).toLocaleDateString()} &mdash;{" "}
-          {new Date(trip.endDate).toLocaleDateString()}
+          {fmtDate(trip.startDate)} &mdash;{" "}
+          {fmtDate(trip.endDate)}
         </p>
       </div>
 
@@ -24,11 +25,7 @@ function ReadOnlyItinerary({ trip }: { trip: TripWithDays }) {
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-medium">Day {index + 1}</h3>
               <span className="text-xs text-muted-foreground">
-                {new Date(day.date).toLocaleDateString(undefined, {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                })}
+                {fmtDayLabel(day.date)}
               </span>
             </div>
             <div className="space-y-1">
