@@ -97,6 +97,15 @@ model TripDay {
   trip              Trip        @relation(fields: [tripId], references: [id], onDelete: Cascade)
   spots             Spot[]
 
+  // Cached route leg: endpoint → first spot
+  startLegDuration  String?
+  startLegDistance  String?
+  startLegPolyline  String?     @db.Text
+  // Cached route leg: last spot → endpoint
+  endLegDuration    String?
+  endLegDistance    String?
+  endLegPolyline    String?     @db.Text
+
   @@index([tripId])
 }
 
@@ -114,6 +123,11 @@ model Spot {
   travelModeToNext TravelMode?
   tripDayId        String
   tripDay          TripDay    @relation(fields: [tripDayId], references: [id], onDelete: Cascade)
+
+  // Cached route leg: this spot → next spot
+  legDuration      String?
+  legDistance      String?
+  legPolyline      String?    @db.Text
 
   @@index([tripDayId])
 }

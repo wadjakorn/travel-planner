@@ -6,6 +6,7 @@ import {
   syncNightsForTrip,
   updateArrivalDeparture,
 } from "@/services/accommodation.service";
+import { clearDayEndpointLegCache } from "@/services/route-cache.service";
 import { NextResponse } from "next/server";
 
 interface RouteParams {
@@ -69,6 +70,22 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       new Date(date),
       accommodationId ?? null
     );
+
+    // The hotel endpoint changes for: the day ending on this night (endLeg)
+    // and the following day starting from this hotel (startLeg).
+    const nightDate = new Date(date);
+    const nextDate = new Date(nightDate);
+    nextDate.setDate(nextDate.getDate() + 1);
+    for (const d of trip.days) {
+      const dayDate = new Date(d.date);
+      if (
+        dayDate.toDateString() === nightDate.toDateString() ||
+        dayDate.toDateString() === nextDate.toDateString()
+      ) {
+        clearDayEndpointLegCache(d.id).catch(() => {});
+      }
+    }
+
     return NextResponse.json(night);
   }
 
@@ -87,6 +104,15 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       departureLat: departure?.lat ?? null,
       departureLng: departure?.lng ?? null,
     });
+
+    // Arrival changes Day 1's start leg; departure changes last day's end leg.
+    if ("arrival" in body && trip.days.length > 0) {
+      clearDayEndpointLegCache(trip.days[0].id).catch(() => {});
+    }
+    if ("departure" in body && trip.days.length > 0) {
+      clearDayEndpointLegCache(trip.days[trip.days.length - 1].id).catch(() => {});
+    }
+
     return NextResponse.json(updated);
   }
 

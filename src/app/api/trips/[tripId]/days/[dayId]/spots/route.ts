@@ -1,6 +1,7 @@
 import { getSession as auth } from "@/lib/get-session";
 import { getTripById } from "@/services/trip.service";
 import { addSpot } from "@/services/spot.service";
+import { clearDayRouteCache } from "@/services/route-cache.service";
 import { NextResponse } from "next/server";
 import type { SpotType } from "@/generated/prisma/client";
 
@@ -65,6 +66,9 @@ export async function POST(request: Request, { params }: RouteParams) {
     notes: notes ?? undefined,
     stayMinutes: typeof stayMinutes === "number" ? stayMinutes : undefined,
   });
+
+  // New spot shifts all leg indices — clear the whole day cache
+  clearDayRouteCache(dayId).catch(() => {});
 
   return NextResponse.json(spot, { status: 201 });
 }

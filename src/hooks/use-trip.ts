@@ -214,6 +214,8 @@ interface ShowRoutePayload {
   defaultMode?: TravelMode;
   startPoint?: LatLngPoint | null;
   endPoint?: LatLngPoint | null;
+  /** Pass true to bypass the server-side route cache and force a fresh Google API call */
+  force?: boolean;
 }
 
 export function useShowRoute() {
@@ -224,13 +226,14 @@ export function useShowRoute() {
       defaultMode,
       startPoint,
       endPoint,
+      force = false,
     }: ShowRoutePayload): Promise<ActiveRoute> => {
       const res = await fetch(
         `/api/trips/${tripId}/days/${dayId}/route`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ defaultMode, startPoint, endPoint }),
+          body: JSON.stringify({ defaultMode, startPoint, endPoint, force }),
         }
       );
       if (!res.ok) throw new Error(await res.text());

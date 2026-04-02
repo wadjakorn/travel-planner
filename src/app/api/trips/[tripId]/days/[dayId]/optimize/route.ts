@@ -2,6 +2,7 @@ import { getSession as auth } from "@/lib/get-session";
 import { getTripById } from "@/services/trip.service";
 import { computeRoute } from "@/services/route-optimizer.service";
 import { reorderSpots } from "@/services/spot.service";
+import { persistRouteLegs } from "@/services/route-cache.service";
 import { NextResponse } from "next/server";
 import type { TravelMode } from "@/generated/prisma/client";
 
@@ -41,6 +42,7 @@ export async function POST(request: Request, { params }: RouteParams) {
   const startPoint = body.startPoint ?? null;
   const endPoint = body.endPoint ?? null;
 
+  // Optimize always calls the Google API (no cache check)
   let result;
   try {
     result = await computeRoute(day.spots, { optimize: true, defaultMode, startPoint, endPoint });
@@ -54,6 +56,11 @@ export async function POST(request: Request, { params }: RouteParams) {
   if (result.wasOptimized && result.orderedSpotIds) {
     await reorderSpots(result.orderedSpotIds);
   }
+
+  // Persist leg cache (reordering clears old data, so persist after reorder)
+  persistRouteLegs(dayId, result).catch((e) =>
+    console.error("[optimize] persistRouteLegs failed:", e)
+  );
 
   return NextResponse.json(result);
 }

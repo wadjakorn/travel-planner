@@ -7,7 +7,10 @@ const TRIP_INCLUDE = {
     orderBy: { sortOrder: "asc" as const },
   },
   accommodations: { orderBy: { createdAt: "asc" as const } },
-  nights: { orderBy: { date: "asc" as const } },
+  nights: {
+    include: { accommodation: true },
+    orderBy: { date: "asc" as const },
+  },
 } as const;
 
 export async function getUserTrips(userId: string) {

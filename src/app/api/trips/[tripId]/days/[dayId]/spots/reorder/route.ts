@@ -1,6 +1,7 @@
 import { getSession as auth } from "@/lib/get-session";
 import { getTripById } from "@/services/trip.service";
 import { reorderSpots, moveSpotToDay } from "@/services/spot.service";
+import { clearDayRouteCache } from "@/services/route-cache.service";
 import { NextResponse } from "next/server";
 
 interface RouteParams {
@@ -40,12 +41,16 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Target day not found" }, { status: 404 });
     }
     await moveSpotToDay(body.spotId, body.targetDayId, body.sortOrder ?? 0);
+    // Spot order changed in both days — clear both caches
+    clearDayRouteCache(dayId).catch(() => {});
+    clearDayRouteCache(body.targetDayId).catch(() => {});
     return NextResponse.json({ ok: true });
   }
 
   // Reorder within day
   if (Array.isArray(body.spotIds)) {
     await reorderSpots(body.spotIds);
+    clearDayRouteCache(dayId).catch(() => {});
     return NextResponse.json({ ok: true });
   }
 

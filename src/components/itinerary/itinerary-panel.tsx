@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -20,6 +20,7 @@ import { useReorderSpots, useMoveSpot } from "@/hooks/use-trip";
 import { useTripStore } from "@/stores/trip-store";
 import { fmtDate } from "@/lib/format-date";
 import { resolveDayEndpoints } from "@/lib/resolve-endpoints";
+import { isCacheValidClient, buildRouteFromCacheClient } from "@/lib/route-cache-client";
 import { DayCard } from "./day-card";
 import { AccommodationPanel } from "./accommodation-panel";
 import { ShareButton } from "@/components/trip/share-button";
@@ -33,10 +34,41 @@ interface ItineraryPanelProps {
 export function ItineraryPanel({ trip }: ItineraryPanelProps) {
   const reorderSpots = useReorderSpots();
   const moveSpot = useMoveSpot();
-  const { selectedDayId, setSelectedDay, clearRoute } = useTripStore();
+  const { activeRoute, selectedDayId, setSelectedDay, setActiveRoute, clearRoute } = useTripStore();
 
   const [localDays, setLocalDays] = useState<TripDayWithSpots[]>(trip.days);
   const [activeSpot, setActiveSpot] = useState<Spot | null>(null);
+
+  // Auto-restore cached route on initial load (avoids redundant Google API calls)
+  const restoredTripId = useRef<string | null>(null);
+  useEffect(() => {
+    if (activeRoute) return; // don't overwrite a freshly computed route
+    if (restoredTripId.current === trip.id) return; // already attempted for this trip
+    restoredTripId.current = trip.id;
+
+    // Find target day: prefer selectedDayId, otherwise first day with complete cache
+    const targetDay =
+      (selectedDayId ? trip.days.find((d) => d.id === selectedDayId) : null) ??
+      trip.days.find((d, i) => {
+        const ep = resolveDayEndpoints(trip, i);
+        const sp = ep.startLat != null ? { lat: ep.startLat, lng: ep.startLng! } : null;
+        const ep2 = ep.endLat != null ? { lat: ep.endLat, lng: ep.endLng! } : null;
+        return isCacheValidClient(d, sp, ep2);
+      });
+    if (!targetDay) return;
+
+    const dayIndex = trip.days.findIndex((d) => d.id === targetDay.id);
+    const ep = resolveDayEndpoints(trip, dayIndex);
+    const startPoint = ep.startLat != null ? { lat: ep.startLat, lng: ep.startLng! } : null;
+    const endPoint = ep.endLat != null ? { lat: ep.endLat, lng: ep.endLng! } : null;
+
+    const cached = buildRouteFromCacheClient(targetDay, startPoint, endPoint);
+    if (cached) {
+      setSelectedDay(targetDay.id);
+      setActiveRoute(cached, targetDay.id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.id]);
 
   if (localDays !== trip.days && !activeSpot) {
     setLocalDays(trip.days);

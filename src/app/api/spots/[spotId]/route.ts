@@ -1,6 +1,7 @@
 import { getSession as auth } from "@/lib/get-session";
 import { prisma } from "@/lib/prisma";
 import { updateSpot, deleteSpot } from "@/services/spot.service";
+import { clearSpotLegCache, clearDayRouteCache } from "@/services/route-cache.service";
 import { NextResponse } from "next/server";
 import type { SpotType, TravelMode } from "@/generated/prisma/client";
 
@@ -70,6 +71,11 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     ...(travelModeToNext !== undefined ? { travelModeToNext } : {}),
   });
 
+  // Invalidate the cached leg for this spot when travel mode changes
+  if (travelModeToNext !== undefined) {
+    clearSpotLegCache(spotId).catch(() => {});
+  }
+
   return NextResponse.json(updated);
 }
 
@@ -85,6 +91,8 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Spot not found" }, { status: 404 });
   }
 
+  // Clear the whole day — spot count changes, so all leg indices shift
+  await clearDayRouteCache(spot.tripDayId);
   await deleteSpot(spotId);
   return new NextResponse(null, { status: 204 });
 }

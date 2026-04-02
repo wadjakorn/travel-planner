@@ -1,5 +1,6 @@
 import { getSession as auth } from "@/lib/get-session";
 import { getTripById } from "@/services/trip.service";
+import { clearDayRouteCache } from "@/services/route-cache.service";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import type { TravelMode } from "@/generated/prisma/client";
@@ -47,6 +48,11 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       ...(defaultTravelMode !== undefined ? { defaultTravelMode } : {}),
     },
   });
+
+  // Travel mode change invalidates all cached legs for the day
+  if (defaultTravelMode !== undefined) {
+    clearDayRouteCache(dayId).catch(() => {});
+  }
 
   return NextResponse.json(updated);
 }
