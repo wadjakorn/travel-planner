@@ -39,10 +39,12 @@ export async function POST(request: Request, { params }: RouteParams) {
   const defaultMode: TravelMode = VALID_TRAVEL_MODES.includes(rawMode)
     ? rawMode
     : "CAR";
+  const startPoint = body.startPoint ?? null;
+  const endPoint = body.endPoint ?? null;
 
   let result;
   try {
-    result = await computeRoute(day.spots, { optimize: false, defaultMode });
+    result = await computeRoute(day.spots, { optimize: false, defaultMode, startPoint, endPoint });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[show-route]", message);

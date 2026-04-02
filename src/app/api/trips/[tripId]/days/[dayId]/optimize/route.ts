@@ -38,10 +38,12 @@ export async function POST(request: Request, { params }: RouteParams) {
   const rawMode = body.mode ?? "time";
   const defaultMode: TravelMode =
     rawMode === "comfort" ? "TRANSIT" : rawMode === "time" ? "CAR" : rawMode;
+  const startPoint = body.startPoint ?? null;
+  const endPoint = body.endPoint ?? null;
 
   let result;
   try {
-    result = await computeRoute(day.spots, { optimize: true, defaultMode });
+    result = await computeRoute(day.spots, { optimize: true, defaultMode, startPoint, endPoint });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[optimize]", message);

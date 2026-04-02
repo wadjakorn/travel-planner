@@ -111,6 +111,15 @@ export function DayCard({ day, dayNumber, tripId, endpoints }: DayCardProps) {
     };
   })() : null;
 
+  const endpointStart =
+    endpoints.startLat !== null && endpoints.startLng !== null
+      ? { lat: endpoints.startLat, lng: endpoints.startLng }
+      : null;
+  const endpointEnd =
+    endpoints.endLat !== null && endpoints.endLng !== null
+      ? { lat: endpoints.endLat, lng: endpoints.endLng }
+      : null;
+
   async function handleShowRoute() {
     setSelectedDay(day.id);
     setIsLoadingRoute(true);
@@ -119,6 +128,8 @@ export function DayCard({ day, dayNumber, tripId, endpoints }: DayCardProps) {
         tripId,
         dayId: day.id,
         defaultMode: day.defaultTravelMode as TravelMode,
+        startPoint: endpointStart,
+        endPoint: endpointEnd,
       });
       setActiveRoute(route, day.id);
     } catch (err) {
@@ -132,7 +143,13 @@ export function DayCard({ day, dayNumber, tripId, endpoints }: DayCardProps) {
     setSelectedDay(day.id);
     setIsLoadingRoute(true);
     try {
-      const route = await optimizeRoute.mutateAsync({ tripId, dayId: day.id, mode });
+      const route = await optimizeRoute.mutateAsync({
+        tripId,
+        dayId: day.id,
+        mode,
+        startPoint: endpointStart,
+        endPoint: endpointEnd,
+      });
       setActiveRoute(route, day.id);
       if (route.wasOptimized) {
         setShowFillDialog(true);
@@ -188,7 +205,7 @@ export function DayCard({ day, dayNumber, tripId, endpoints }: DayCardProps) {
                 >
                   <MoreHorizontal className="h-4 w-4" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" side="bottom">
+                <DropdownMenuContent align="end" side="bottom" className="min-w-48 w-auto">
                   {/* Show Route */}
                   <DropdownMenuItem
                     onClick={handleShowRoute}

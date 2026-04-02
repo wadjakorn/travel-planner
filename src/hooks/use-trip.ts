@@ -203,10 +203,17 @@ export function useMoveSpot() {
 
 // ─── Route mutations ───────────────────────────────────────────────────────
 
+interface LatLngPoint {
+  lat: number;
+  lng: number;
+}
+
 interface ShowRoutePayload {
   tripId: string;
   dayId: string;
   defaultMode?: TravelMode;
+  startPoint?: LatLngPoint | null;
+  endPoint?: LatLngPoint | null;
 }
 
 export function useShowRoute() {
@@ -215,13 +222,15 @@ export function useShowRoute() {
       tripId,
       dayId,
       defaultMode,
+      startPoint,
+      endPoint,
     }: ShowRoutePayload): Promise<ActiveRoute> => {
       const res = await fetch(
         `/api/trips/${tripId}/days/${dayId}/route`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ defaultMode }),
+          body: JSON.stringify({ defaultMode, startPoint, endPoint }),
         }
       );
       if (!res.ok) throw new Error(await res.text());
@@ -234,6 +243,8 @@ interface OptimizeRoutePayload {
   tripId: string;
   dayId: string;
   mode: "time" | "comfort";
+  startPoint?: LatLngPoint | null;
+  endPoint?: LatLngPoint | null;
 }
 
 export function useOptimizeRoute() {
@@ -243,13 +254,15 @@ export function useOptimizeRoute() {
       tripId,
       dayId,
       mode,
+      startPoint,
+      endPoint,
     }: OptimizeRoutePayload): Promise<ActiveRoute> => {
       const res = await fetch(
         `/api/trips/${tripId}/days/${dayId}/optimize`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode }),
+          body: JSON.stringify({ mode, startPoint, endPoint }),
         }
       );
       if (!res.ok) throw new Error(await res.text());

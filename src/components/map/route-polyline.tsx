@@ -45,6 +45,8 @@ export function RoutePolyline() {
 
     if (!activeRoute?.legs?.length) return;
 
+    const bounds = new google.maps.LatLngBounds();
+
     activeRoute.legs.forEach((leg, i) => {
       if (!leg.polyline) return;
 
@@ -63,7 +65,13 @@ export function RoutePolyline() {
       });
 
       polylinesRef.current.push(polyline);
+      path.forEach((pt) => bounds.extend(pt));
     });
+
+    // Pan and zoom to fit the entire route
+    if (!bounds.isEmpty()) {
+      map.fitBounds(bounds, 80);
+    }
 
     return () => {
       polylinesRef.current.forEach((p) => p.setMap(null));

@@ -80,6 +80,10 @@ interface ComputeRouteOptions {
   optimize?: boolean;
   /** Travel mode for all legs (when no per-spot override is set). */
   defaultMode?: TravelMode;
+  /** Optional fixed origin before the first spot (hotel / arrival location). */
+  startPoint?: { lat: number; lng: number } | null;
+  /** Optional fixed destination after the last spot (hotel / departure location). */
+  endPoint?: { lat: number; lng: number } | null;
 }
 
 /**
@@ -96,7 +100,7 @@ export async function computeRoute(
   spots: Spot[],
   options: ComputeRouteOptions = {}
 ): Promise<ActiveRoute> {
-  const { optimize = false, defaultMode = "CAR" } = options;
+  const { optimize = false, defaultMode = "CAR", startPoint, endPoint } = options;
 
   if (spots.length < 2) {
     throw new Error("Need at least 2 spots to compute a route");
@@ -116,12 +120,66 @@ export async function computeRoute(
   const singleMode = allSameMode ? legModes[0] : null;
 
   // ── Path A: All legs same mode → single API call (may optimise order) ────
+  let result: ActiveRoute;
   if (singleMode !== null) {
-    return await computeRouteSingleMode(spots, singleMode, optimize);
+    result = await computeRouteSingleMode(spots, singleMode, optimize);
+  } else {
+    // ── Path B: Mixed modes → sequential single-leg requests (no optimise) ─
+    result = await computeRouteMixedModes(spots, legModes);
   }
 
-  // ── Path B: Mixed modes → sequential single-leg requests (no optimise) ───
-  return await computeRouteMixedModes(spots, legModes);
+  // ── Endpoint legs (hotel → first spot and last spot → hotel) ─────────────
+  // Computed in parallel; failures are non-fatal (silently skipped).
+  const parseSecs = (d: string) => parseInt(d.replace("s", ""), 10);
+
+  const orderedIds = result.orderedSpotIds ?? spots.map((s) => s.id);
+  const firstSpot = spots.find((s) => s.id === orderedIds[0]) ?? spots[0];
+  const lastSpot =
+    spots.find((s) => s.id === orderedIds[orderedIds.length - 1]) ??
+    spots[spots.length - 1];
+
+  const [startLeg, endLeg] = await Promise.all([
+    startPoint
+      ? computeSingleLeg(startPoint, { lat: firstSpot.lat, lng: firstSpot.lng }, defaultMode)
+          .then((r) => ({
+            startSpotId: "__endpoint_start__",
+            endSpotId: firstSpot.id,
+            ...r,
+            travelMode: defaultMode,
+          } as RouteLeg))
+          .catch(() => null)
+      : Promise.resolve(null),
+    endPoint
+      ? computeSingleLeg({ lat: lastSpot.lat, lng: lastSpot.lng }, endPoint, defaultMode)
+          .then((r) => ({
+            startSpotId: lastSpot.id,
+            endSpotId: "__endpoint_end__",
+            ...r,
+            travelMode: defaultMode,
+          } as RouteLeg))
+          .catch(() => null)
+      : Promise.resolve(null),
+  ]);
+
+  if (!startLeg && !endLeg) return result;
+
+  const allLegs: RouteLeg[] = [
+    ...(startLeg ? [startLeg] : []),
+    ...result.legs,
+    ...(endLeg ? [endLeg] : []),
+  ];
+  const totalSecs = allLegs.reduce((sum, l) => sum + parseSecs(l.duration), 0);
+  const totalDistKm = allLegs.reduce(
+    (sum, l) => sum + parseFloat(l.distance),
+    0
+  );
+
+  return {
+    ...result,
+    legs: allLegs,
+    totalDuration: `${totalSecs}s`,
+    totalDistance: `${totalDistKm.toFixed(1)} km`,
+  };
 }
 
 async function computeRouteSingleMode(
