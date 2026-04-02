@@ -90,6 +90,7 @@ export function SpotCard({ spot, tripId, index }: SpotCardProps) {
       <button
         {...attributes}
         {...listeners}
+        suppressHydrationWarning
         className="shrink-0 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
         onClick={(e) => e.stopPropagation()}
       >

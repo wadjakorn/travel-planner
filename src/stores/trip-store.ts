@@ -27,6 +27,9 @@ interface TripState {
   // ── Theme ─────────────────────────────────────────────────────────
   darkMode: boolean;
 
+  // ── Leg highlight ─────────────────────────────────────────────────
+  hoveredLegIndex: number | null;
+
   // ── Actions ───────────────────────────────────────────────────────
   setSelectedDay: (dayId: string | null) => void;
   setSelectedSpot: (spotId: string | null) => void;
@@ -38,6 +41,7 @@ interface TripState {
   toggleDarkMode: () => void;
   setDarkMode: (dark: boolean) => void;
   clearRoute: () => void;
+  setHoveredLegIndex: (i: number | null) => void;
 }
 
 export const useTripStore = create<TripState>()(
@@ -52,6 +56,7 @@ export const useTripStore = create<TripState>()(
       mapCenter: null,
       mapZoom: 13,
       darkMode: false,
+      hoveredLegIndex: null,
 
       setSelectedDay: (dayId) =>
         set({ selectedDayId: dayId, activeRoute: null, activeRouteDayId: null }),
@@ -68,6 +73,7 @@ export const useTripStore = create<TripState>()(
       setMapZoom: (zoom) => set({ mapZoom: zoom }),
       toggleDarkMode: () => set((s) => ({ darkMode: !s.darkMode })),
       setDarkMode: (dark) => set({ darkMode: dark }),
+      setHoveredLegIndex: (i) => set({ hoveredLegIndex: i }),
     }),
     {
       name: "trip-ui",

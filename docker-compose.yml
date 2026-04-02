@@ -1,4 +1,24 @@
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+      - "9229:9229"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/travel_planner
+      WATCHPACK_POLLING: "true"
+      NODE_OPTIONS: "--inspect=0.0.0.0:9229"
+    depends_on:
+      db:
+        condition: service_healthy
+
   db:
     image: postgis/postgis:16-3.4-alpine
     restart: unless-stopped

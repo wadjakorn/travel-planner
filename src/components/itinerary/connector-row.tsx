@@ -2,7 +2,7 @@
 
 import type { RouteLeg, TravelMode } from "@/types";
 import type { Spot } from "@/generated/prisma/client";
-import { parseDurationSecs, formatDuration } from "@/stores/trip-store";
+import { parseDurationSecs, formatDuration, useTripStore } from "@/stores/trip-store";
 import { useUpdateSpot } from "@/hooks/use-trip";
 import {
   DropdownMenu,
@@ -69,9 +69,16 @@ function ConnectorVisual({
   const ModeIcon = getModeIcon(effectiveMode);
   const legColor = leg ? getLegColor(legIndex) : undefined;
   const durationSecs = leg ? parseDurationSecs(leg.duration) : null;
+  const { hoveredLegIndex, setHoveredLegIndex } = useTripStore();
+  const isHighlighted = hoveredLegIndex === legIndex;
 
   return (
-    <div className="flex items-center gap-1.5 py-0.5 pl-6">
+    <div
+      data-leg-index={legIndex}
+      className={`flex items-center gap-1.5 py-0.5 pl-6 rounded transition-colors${isHighlighted ? " bg-muted/60" : ""}`}
+      onMouseEnter={() => setHoveredLegIndex(legIndex)}
+      onMouseLeave={() => setHoveredLegIndex(null)}
+    >
       {/* Vertical connector line */}
       <div className="flex flex-col items-center" style={{ minWidth: 16 }}>
         <div

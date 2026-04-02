@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { List } from "lucide-react";
 
 const MIN_SIDEBAR_WIDTH = 280;
-const MAX_SIDEBAR_WIDTH = 640;
+const MAX_SIDEBAR_WIDTH = 1080;
 const DEFAULT_SIDEBAR_WIDTH = 384; // w-96
 
 interface TripViewProps {
