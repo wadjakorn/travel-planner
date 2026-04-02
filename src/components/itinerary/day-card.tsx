@@ -172,7 +172,7 @@ export function DayCard({ day, dayNumber, tripId, endpoints }: DayCardProps) {
       <Card className={`transition-colors ${isSelected ? "ring-2 ring-primary" : ""}`}>
         <CardHeader
           className="pb-2 cursor-pointer"
-          onClick={() => setSelectedDay(isSelected ? null : day.id)}
+          onClick={() => setSelectedDay(day.id)}
         >
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-base">Day {dayNumber}</CardTitle>

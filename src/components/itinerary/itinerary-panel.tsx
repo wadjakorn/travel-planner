@@ -17,13 +17,14 @@ import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import type { TripWithDays, TripDayWithSpots } from "@/types";
 import type { Spot } from "@/generated/prisma/client";
 import { useReorderSpots, useMoveSpot } from "@/hooks/use-trip";
+import { useTripStore } from "@/stores/trip-store";
 import { fmtDate } from "@/lib/format-date";
 import { resolveDayEndpoints } from "@/lib/resolve-endpoints";
 import { DayCard } from "./day-card";
 import { AccommodationPanel } from "./accommodation-panel";
 import { ShareButton } from "@/components/trip/share-button";
 import { Button } from "@/components/ui/button";
-import { CalendarArrowDown } from "lucide-react";
+import { CalendarArrowDown, Layers } from "lucide-react";
 
 interface ItineraryPanelProps {
   trip: TripWithDays;
@@ -32,6 +33,7 @@ interface ItineraryPanelProps {
 export function ItineraryPanel({ trip }: ItineraryPanelProps) {
   const reorderSpots = useReorderSpots();
   const moveSpot = useMoveSpot();
+  const { selectedDayId, setSelectedDay, clearRoute } = useTripStore();
 
   const [localDays, setLocalDays] = useState<TripDayWithSpots[]>(trip.days);
   const [activeSpot, setActiveSpot] = useState<Spot | null>(null);
@@ -137,6 +139,20 @@ export function ItineraryPanel({ trip }: ItineraryPanelProps) {
             </p>
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            {/* Show all spots (clears day selection + route) */}
+            <Button
+              variant={selectedDayId ? "secondary" : "ghost"}
+              size="icon"
+              className="h-8 w-8"
+              aria-label="Show all spots"
+              title="Show all spots"
+              onClick={() => {
+                setSelectedDay(null);
+                clearRoute();
+              }}
+            >
+              <Layers className="h-4 w-4" />
+            </Button>
             <ShareButton tripId={trip.id} shareToken={trip.shareToken} />
             <a href={`/api/trips/${trip.id}/export`} download>
               <Button
