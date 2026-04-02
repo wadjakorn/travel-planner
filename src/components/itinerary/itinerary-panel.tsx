@@ -18,6 +18,7 @@ import type { TripWithDays, TripDayWithSpots } from "@/types";
 import type { Spot } from "@/generated/prisma/client";
 import { useReorderSpots, useMoveSpot } from "@/hooks/use-trip";
 import { fmtDate } from "@/lib/format-date";
+import { resolveDayEndpoints } from "@/lib/resolve-endpoints";
 import { DayCard } from "./day-card";
 import { AccommodationPanel } from "./accommodation-panel";
 import { ShareButton } from "@/components/trip/share-button";
@@ -173,6 +174,7 @@ export function ItineraryPanel({ trip }: ItineraryPanelProps) {
                 day={day}
                 dayNumber={index + 1}
                 tripId={trip.id}
+                endpoints={resolveDayEndpoints(trip, index)}
               />
             ))}
 

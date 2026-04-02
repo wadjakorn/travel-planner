@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useMapsLibrary } from "@vis.gl/react-google-maps";
 import type { TripWithDays, Accommodation } from "@/types";
-import { fmtDayLabel, fmtShortDate } from "@/lib/format-date";
+import { fmtDayLabel } from "@/lib/format-date";
 import {
   useAccommodationsQuery,
   useNightsQuery,
@@ -95,124 +95,278 @@ export function AccommodationPanel({ trip }: AccommodationPanelProps) {
   );
 }
 
+// ─── PlaceSearchInput (file-private) ─────────────────────────────────────
+
+interface PlaceSearchInputProps {
+  placeholder: string;
+  onSelect: (pick: PlacePick) => void;
+  onCancel: () => void;
+}
+
+function PlaceSearchInput({ placeholder, onSelect, onCancel }: PlaceSearchInputProps) {
+  const placesLib = useMapsLibrary("places");
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dropdownRect, setDropdownRect] = useState<DropdownRect | null>(null);
+
+  const inputWrapperRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const measureInput = useCallback(() => {
+    if (!inputWrapperRef.current) return;
+    const rect = inputWrapperRef.current.getBoundingClientRect();
+    setDropdownRect({
+      top: rect.bottom + window.scrollY + 4,
+      left: rect.left + window.scrollX,
+      width: rect.width,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!placesLib || query.length < 2) {
+      setSuggestions([]);
+      setDropdownOpen(false);
+      return;
+    }
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+    measureInput();
+    (async () => {
+      try {
+        const { suggestions: raw } =
+          await placesLib.AutocompleteSuggestion.fetchAutocompleteSuggestions({ input: query });
+        setSuggestions(
+          raw
+            .map((s) => s.placePrediction)
+            .filter(Boolean)
+            .map((p) => ({
+              placeId: p!.placeId,
+              mainText: p!.mainText?.toString() ?? "",
+              secondaryText: p!.secondaryText?.toString() ?? "",
+            }))
+        );
+        setDropdownOpen(true);
+      } catch {
+        setSuggestions([]);
+        setDropdownOpen(false);
+      }
+    })();
+  }, [query, placesLib, measureInput]);
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const update = () => measureInput();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [dropdownOpen, measureInput]);
+
+  useEffect(() => {
+    function handleMouseDown(e: MouseEvent) {
+      const target = e.target as Node;
+      const insideInput = inputWrapperRef.current?.contains(target);
+      const insideDropdown = document
+        .getElementById("endpoint-search-dropdown")
+        ?.contains(target);
+      if (!insideInput && !insideDropdown) setDropdownOpen(false);
+    }
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, []);
+
+  async function selectSuggestion(suggestion: Suggestion) {
+    if (!placesLib) return;
+    try {
+      const place = new placesLib.Place({ id: suggestion.placeId });
+      await place.fetchFields({
+        fields: ["displayName", "location", "formattedAddress", "id"],
+      });
+      if (!place.location) return;
+      onSelect({
+        name: place.displayName ?? suggestion.mainText,
+        address: place.formattedAddress ?? suggestion.secondaryText,
+        lat: place.location.lat(),
+        lng: place.location.lng(),
+        placeId: place.id ?? suggestion.placeId,
+      });
+    } catch {
+      // Place fetch failed — ignore
+    }
+  }
+
+  const dropdown =
+    dropdownOpen && suggestions.length > 0 && dropdownRect
+      ? createPortal(
+          <ul
+            id="endpoint-search-dropdown"
+            style={{
+              position: "absolute",
+              top: dropdownRect.top,
+              left: dropdownRect.left,
+              width: dropdownRect.width,
+              zIndex: 9999,
+            }}
+            className="rounded-md border bg-popover shadow-lg"
+          >
+            {suggestions.map((s) => (
+              <li key={s.placeId}>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start rounded-none px-3 py-2 h-auto text-left"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    selectSuggestion(s);
+                  }}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{s.mainText}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {s.secondaryText}
+                    </p>
+                  </div>
+                </Button>
+              </li>
+            ))}
+          </ul>,
+          document.body
+        )
+      : null;
+
+  return (
+    <div className="flex flex-1 gap-1">
+      <div ref={inputWrapperRef} className="relative flex-1">
+        <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") onCancel();
+          }}
+          placeholder={placeholder}
+          className="pl-6 h-6 text-xs"
+        />
+      </div>
+      <Button size="sm" variant="ghost" className="h-6 px-1" onClick={onCancel}>
+        <X className="h-3 w-3" />
+      </Button>
+      {dropdown}
+    </div>
+  );
+}
+
 // ─── Arrival / Departure section ──────────────────────────────────────────
 
 function ArrivalDepartureSection({ trip }: { trip: TripWithDays }) {
   const setArrivalDeparture = useSetArrivalDeparture();
   const [editingArrival, setEditingArrival] = useState(false);
   const [editingDeparture, setEditingDeparture] = useState(false);
-  const [arrivalName, setArrivalName] = useState(trip.arrivalName ?? "");
-  const [departureName, setDepartureName] = useState(trip.departureName ?? "");
 
-  function saveArrival() {
-    if (arrivalName.trim()) {
-      setArrivalDeparture.mutate({
-        tripId: trip.id,
-        arrival: { name: arrivalName.trim(), lat: 0, lng: 0 },
-        departure: trip.departureName
-          ? {
-              name: trip.departureName,
-              address: trip.departureAddress ?? undefined,
-              lat: trip.departureLat ?? 0,
-              lng: trip.departureLng ?? 0,
-            }
-          : null,
-      });
-    } else {
-      setArrivalDeparture.mutate({
-        tripId: trip.id,
-        arrival: null,
-        departure: trip.departureName
-          ? {
-              name: trip.departureName,
-              address: trip.departureAddress ?? undefined,
-              lat: trip.departureLat ?? 0,
-              lng: trip.departureLng ?? 0,
-            }
-          : null,
-      });
-    }
+  function handleSelectArrival(pick: PlacePick) {
+    setArrivalDeparture.mutate({
+      tripId: trip.id,
+      arrival: { name: pick.name, address: pick.address, lat: pick.lat, lng: pick.lng },
+      departure: trip.departureName
+        ? {
+            name: trip.departureName,
+            address: trip.departureAddress ?? undefined,
+            lat: trip.departureLat ?? 0,
+            lng: trip.departureLng ?? 0,
+          }
+        : null,
+    });
     setEditingArrival(false);
   }
 
-  function saveDeparture() {
-    if (departureName.trim()) {
-      setArrivalDeparture.mutate({
-        tripId: trip.id,
-        arrival: trip.arrivalName
-          ? {
-              name: trip.arrivalName,
-              address: trip.arrivalAddress ?? undefined,
-              lat: trip.arrivalLat ?? 0,
-              lng: trip.arrivalLng ?? 0,
-            }
-          : null,
-        departure: { name: departureName.trim(), lat: 0, lng: 0 },
-      });
-    } else {
-      setArrivalDeparture.mutate({
-        tripId: trip.id,
-        arrival: trip.arrivalName
-          ? {
-              name: trip.arrivalName,
-              address: trip.arrivalAddress ?? undefined,
-              lat: trip.arrivalLat ?? 0,
-              lng: trip.arrivalLng ?? 0,
-            }
-          : null,
-        departure: null,
-      });
-    }
+  function handleClearArrival() {
+    setArrivalDeparture.mutate({
+      tripId: trip.id,
+      arrival: null,
+      departure: trip.departureName
+        ? {
+            name: trip.departureName,
+            address: trip.departureAddress ?? undefined,
+            lat: trip.departureLat ?? 0,
+            lng: trip.departureLng ?? 0,
+          }
+        : null,
+    });
+  }
+
+  function handleSelectDeparture(pick: PlacePick) {
+    setArrivalDeparture.mutate({
+      tripId: trip.id,
+      arrival: trip.arrivalName
+        ? {
+            name: trip.arrivalName,
+            address: trip.arrivalAddress ?? undefined,
+            lat: trip.arrivalLat ?? 0,
+            lng: trip.arrivalLng ?? 0,
+          }
+        : null,
+      departure: { name: pick.name, address: pick.address, lat: pick.lat, lng: pick.lng },
+    });
     setEditingDeparture(false);
+  }
+
+  function handleClearDeparture() {
+    setArrivalDeparture.mutate({
+      tripId: trip.id,
+      arrival: trip.arrivalName
+        ? {
+            name: trip.arrivalName,
+            address: trip.arrivalAddress ?? undefined,
+            lat: trip.arrivalLat ?? 0,
+            lng: trip.arrivalLng ?? 0,
+          }
+        : null,
+      departure: null,
+    });
   }
 
   return (
     <div className="space-y-2">
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
         Trip endpoints
+        <span className="ml-1 normal-case font-normal text-muted-foreground/70">
+          — Day 1 start &amp; last day end
+        </span>
       </p>
 
       {/* Arrival */}
       <div className="flex items-center gap-2">
         <Navigation className="h-3.5 w-3.5 text-green-600 shrink-0" />
         {editingArrival ? (
-          <div className="flex flex-1 gap-1">
-            <Input
-              autoFocus
-              value={arrivalName}
-              onChange={(e) => setArrivalName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveArrival();
-                if (e.key === "Escape") setEditingArrival(false);
-              }}
-              placeholder="Arrival location (e.g. Airport)"
-              className="h-6 text-xs"
-            />
-            <Button size="sm" className="h-6 px-2 text-xs" onClick={saveArrival}>
-              Save
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-1"
-              onClick={() => setEditingArrival(false)}
-            >
-              ✕
-            </Button>
-          </div>
+          <PlaceSearchInput
+            placeholder="e.g. Narita Airport, Tokyo Station…"
+            onSelect={handleSelectArrival}
+            onCancel={() => setEditingArrival(false)}
+          />
         ) : (
-          <button
-            className="flex-1 text-left text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              setArrivalName(trip.arrivalName ?? "");
-              setEditingArrival(true);
-            }}
-          >
-            <span className="text-xs font-medium text-foreground/70">From: </span>
-            {trip.arrivalName ?? (
-              <span className="italic text-muted-foreground/70">Not set</span>
+          <div className="flex flex-1 items-center gap-1 min-w-0">
+            <button
+              className="flex-1 text-left text-xs text-muted-foreground hover:text-foreground truncate"
+              onClick={() => setEditingArrival(true)}
+            >
+              <span className="text-xs font-medium text-foreground/70">From: </span>
+              {trip.arrivalName ?? (
+                <span className="italic text-muted-foreground/70">Not set</span>
+              )}
+            </button>
+            {trip.arrivalName && (
+              <button
+                className="text-muted-foreground hover:text-destructive shrink-0"
+                onClick={handleClearArrival}
+                title="Clear arrival"
+              >
+                <X className="h-3 w-3" />
+              </button>
             )}
-          </button>
+          </div>
         )}
       </div>
 
@@ -220,43 +374,32 @@ function ArrivalDepartureSection({ trip }: { trip: TripWithDays }) {
       <div className="flex items-center gap-2">
         <MapPin className="h-3.5 w-3.5 text-red-500 shrink-0" />
         {editingDeparture ? (
-          <div className="flex flex-1 gap-1">
-            <Input
-              autoFocus
-              value={departureName}
-              onChange={(e) => setDepartureName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveDeparture();
-                if (e.key === "Escape") setEditingDeparture(false);
-              }}
-              placeholder="Departure location (e.g. Airport)"
-              className="h-6 text-xs"
-            />
-            <Button size="sm" className="h-6 px-2 text-xs" onClick={saveDeparture}>
-              Save
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-1"
-              onClick={() => setEditingDeparture(false)}
-            >
-              ✕
-            </Button>
-          </div>
+          <PlaceSearchInput
+            placeholder="e.g. Haneda Airport, Shinjuku Station…"
+            onSelect={handleSelectDeparture}
+            onCancel={() => setEditingDeparture(false)}
+          />
         ) : (
-          <button
-            className="flex-1 text-left text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              setDepartureName(trip.departureName ?? "");
-              setEditingDeparture(true);
-            }}
-          >
-            <span className="text-xs font-medium text-foreground/70">To: </span>
-            {trip.departureName ?? (
-              <span className="italic text-muted-foreground/70">Not set</span>
+          <div className="flex flex-1 items-center gap-1 min-w-0">
+            <button
+              className="flex-1 text-left text-xs text-muted-foreground hover:text-foreground truncate"
+              onClick={() => setEditingDeparture(true)}
+            >
+              <span className="text-xs font-medium text-foreground/70">To: </span>
+              {trip.departureName ?? (
+                <span className="italic text-muted-foreground/70">Not set</span>
+              )}
+            </button>
+            {trip.departureName && (
+              <button
+                className="text-muted-foreground hover:text-destructive shrink-0"
+                onClick={handleClearDeparture}
+                title="Clear departure"
+              >
+                <X className="h-3 w-3" />
+              </button>
             )}
-          </button>
+          </div>
         )}
       </div>
     </div>

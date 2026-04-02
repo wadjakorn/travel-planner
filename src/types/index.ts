@@ -18,7 +18,7 @@ export type TripWithDays = Trip & {
     spots: Spot[];
   })[];
   accommodations: Accommodation[];
-  nights: NightAccommodation[];
+  nights: (NightAccommodation & { accommodation: Accommodation | null })[];
 };
 
 export type TripDayWithSpots = TripDay & {
@@ -85,3 +85,5 @@ export interface CreateAccommodationInput {
   lng: number;
   placeId?: string;
 }
+
+export type { DayEndpoints } from "@/lib/resolve-endpoints";

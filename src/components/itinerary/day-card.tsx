@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import type { TripDayWithSpots } from "@/types";
+import type { TripDayWithSpots, DayEndpoints } from "@/types";
 import type { TravelMode } from "@/generated/prisma/client";
 import { useTripStore, parseDurationSecs, formatDuration } from "@/stores/trip-store";
 import { fmtDayLabel } from "@/lib/format-date";
@@ -42,12 +42,16 @@ import {
   Bike,
   X,
   Timer,
+  Navigation,
+  MapPin,
+  BedDouble,
 } from "lucide-react";
 
 interface DayCardProps {
   day: TripDayWithSpots;
   dayNumber: number;
   tripId: string;
+  endpoints: DayEndpoints;
 }
 
 const TRAVEL_MODE_OPTIONS: {
@@ -61,7 +65,7 @@ const TRAVEL_MODE_OPTIONS: {
   { mode: "BICYCLE", label: "Bicycle", Icon: Bike },
 ];
 
-export function DayCard({ day, dayNumber, tripId }: DayCardProps) {
+export function DayCard({ day, dayNumber, tripId, endpoints }: DayCardProps) {
   const {
     selectedDayId,
     setSelectedDay,
@@ -269,6 +273,16 @@ export function DayCard({ day, dayNumber, tripId }: DayCardProps) {
         </CardHeader>
 
         <CardContent className="space-y-0 pt-0">
+          {/* Pinned start row */}
+          {endpoints.startLabel && (
+            <div className="flex items-center gap-1.5 py-1 text-xs text-muted-foreground border-b border-dashed mb-1">
+              {endpoints.startIcon === "arrival"
+                ? <Navigation className="h-3 w-3 text-green-600 shrink-0" />
+                : <BedDouble className="h-3 w-3 text-blue-500 shrink-0" />}
+              <span className="truncate">{endpoints.startLabel}</span>
+            </div>
+          )}
+
           <SortableContext
             id={day.id}
             items={day.spots.map((s) => s.id)}
@@ -297,6 +311,16 @@ export function DayCard({ day, dayNumber, tripId }: DayCardProps) {
               )}
             </div>
           </SortableContext>
+
+          {/* Pinned end row */}
+          {endpoints.endLabel && (
+            <div className="flex items-center gap-1.5 py-1 text-xs text-muted-foreground border-t border-dashed mt-1">
+              {endpoints.endIcon === "departure"
+                ? <MapPin className="h-3 w-3 text-red-500 shrink-0" />
+                : <BedDouble className="h-3 w-3 text-blue-500 shrink-0" />}
+              <span className="truncate">{endpoints.endLabel}</span>
+            </div>
+          )}
 
           {/* Place search */}
           <div onClick={(e) => e.stopPropagation()} className="pt-2">
