@@ -8,7 +8,7 @@ import type { TravelMode } from "@/generated/prisma/client";
 import { useTripStore, parseDurationSecs, formatDuration } from "@/stores/trip-store";
 import { fmtDayLabel } from "@/lib/format-date";
 import { SpotCard } from "./spot-card";
-import { ConnectorRow } from "./connector-row";
+import { ConnectorRow, EndpointConnectorRow } from "./connector-row";
 import { AddSpotSearch } from "@/components/map/add-spot-search";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -290,14 +290,26 @@ export function DayCard({ day, dayNumber, tripId, endpoints }: DayCardProps) {
         </CardHeader>
 
         <CardContent className="space-y-0 pt-0">
-          {/* Pinned start row */}
+          {/* Pinned start row + connector to first spot */}
           {endpoints.startLabel && (
-            <div className="flex items-center gap-1.5 py-1 text-xs text-muted-foreground border-b border-dashed mb-1">
-              {endpoints.startIcon === "arrival"
-                ? <Navigation className="h-3 w-3 text-green-600 shrink-0" />
-                : <BedDouble className="h-3 w-3 text-blue-500 shrink-0" />}
-              <span className="truncate">{endpoints.startLabel}</span>
-            </div>
+            <>
+              <div className="flex items-center gap-1.5 py-1 text-xs text-muted-foreground">
+                {endpoints.startIcon === "arrival"
+                  ? <Navigation className="h-3 w-3 text-green-600 shrink-0" />
+                  : <BedDouble className="h-3 w-3 text-blue-500 shrink-0" />}
+                <span className="truncate">{endpoints.startLabel}</span>
+              </div>
+              {day.spots.length > 0 && (
+                <EndpointConnectorRow
+                  leg={legsByStartSpot.get("__endpoint_start__") ?? null}
+                  legIndex={0}
+                  currentMode={day.defaultTravelMode as TravelMode}
+                  onModeChange={(mode) =>
+                    setDayTravelMode.mutate({ tripId, dayId: day.id, defaultTravelMode: mode })
+                  }
+                />
+              )}
+            </>
           )}
 
           <SortableContext
@@ -311,32 +323,52 @@ export function DayCard({ day, dayNumber, tripId, endpoints }: DayCardProps) {
                   No spots yet — search below to add one.
                 </p>
               ) : (
-                day.spots.map((spot, index) => (
-                  <div key={spot.id}>
-                    <SpotCard spot={spot} tripId={tripId} index={index} />
-                    {/* Connector row between spots (not after the last one) */}
-                    {index < day.spots.length - 1 && (
-                      <ConnectorRow
-                        spot={spot}
-                        tripId={tripId}
-                        leg={legsByStartSpot.get(spot.id) ?? null}
-                        legIndex={index}
-                      />
-                    )}
-                  </div>
-                ))
+                day.spots.map((spot, index) => {
+                  // Leg color index: offset by 1 if there's a start endpoint leg
+                  const hasStartLeg = !!legsByStartSpot.get("__endpoint_start__");
+                  const legColorIndex = index + (hasStartLeg ? 1 : 0);
+                  return (
+                    <div key={spot.id}>
+                      <SpotCard spot={spot} tripId={tripId} index={index} />
+                      {/* Connector between spots (not after last spot) */}
+                      {index < day.spots.length - 1 && (
+                        <ConnectorRow
+                          spot={spot}
+                          tripId={tripId}
+                          leg={legsByStartSpot.get(spot.id) ?? null}
+                          legIndex={legColorIndex}
+                        />
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
           </SortableContext>
 
-          {/* Pinned end row */}
+          {/* Connector from last spot + pinned end row */}
           {endpoints.endLabel && (
-            <div className="flex items-center gap-1.5 py-1 text-xs text-muted-foreground border-t border-dashed mt-1">
-              {endpoints.endIcon === "departure"
-                ? <MapPin className="h-3 w-3 text-red-500 shrink-0" />
-                : <BedDouble className="h-3 w-3 text-blue-500 shrink-0" />}
-              <span className="truncate">{endpoints.endLabel}</span>
-            </div>
+            <>
+              {day.spots.length > 0 && (
+                <EndpointConnectorRow
+                  leg={legsByStartSpot.get(day.spots[day.spots.length - 1].id) ?? null}
+                  legIndex={
+                    day.spots.length - 1 +
+                    (legsByStartSpot.get("__endpoint_start__") ? 1 : 0)
+                  }
+                  currentMode={day.defaultTravelMode as TravelMode}
+                  onModeChange={(mode) =>
+                    setDayTravelMode.mutate({ tripId, dayId: day.id, defaultTravelMode: mode })
+                  }
+                />
+              )}
+              <div className="flex items-center gap-1.5 py-1 text-xs text-muted-foreground">
+                {endpoints.endIcon === "departure"
+                  ? <MapPin className="h-3 w-3 text-red-500 shrink-0" />
+                  : <BedDouble className="h-3 w-3 text-blue-500 shrink-0" />}
+                <span className="truncate">{endpoints.endLabel}</span>
+              </div>
+            </>
           )}
 
           {/* Place search */}

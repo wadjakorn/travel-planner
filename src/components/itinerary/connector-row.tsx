@@ -52,24 +52,28 @@ function getModeIcon(mode: TravelMode | null): React.ElementType {
   }
 }
 
-export function ConnectorRow({ spot, tripId, leg, legIndex }: ConnectorRowProps) {
-  const updateSpot = useUpdateSpot();
-  const effectiveMode = spot.travelModeToNext ?? null;
+/** Shared visual for the connector line + mode picker */
+function ConnectorVisual({
+  leg,
+  legIndex,
+  effectiveMode,
+  onModeChange,
+  allowReset = false,
+}: {
+  leg: RouteLeg | null;
+  legIndex: number;
+  effectiveMode: TravelMode | null;
+  onModeChange: (mode: TravelMode | null) => void;
+  allowReset?: boolean;
+}) {
   const ModeIcon = getModeIcon(effectiveMode);
   const legColor = leg ? getLegColor(legIndex) : undefined;
   const durationSecs = leg ? parseDurationSecs(leg.duration) : null;
 
-  function handleModeChange(mode: TravelMode | null) {
-    updateSpot.mutate({ spotId: spot.id, tripId, travelModeToNext: mode });
-  }
-
   return (
     <div className="flex items-center gap-1.5 py-0.5 pl-6">
-      {/* Vertical connector line with leg color */}
-      <div
-        className="flex flex-col items-center"
-        style={{ minWidth: 16 }}
-      >
+      {/* Vertical connector line */}
+      <div className="flex flex-col items-center" style={{ minWidth: 16 }}>
         <div
           className="w-0.5 h-3 rounded"
           style={{ backgroundColor: legColor ?? "var(--border)" }}
@@ -92,10 +96,7 @@ export function ConnectorRow({ spot, tripId, leg, legIndex }: ConnectorRowProps)
         >
           <ModeIcon className="h-3.5 w-3.5" />
           {durationSecs !== null && (
-            <span
-              className="font-medium tabular-nums"
-              style={{ color: legColor }}
-            >
+            <span className="font-medium tabular-nums" style={{ color: legColor }}>
               {formatDuration(durationSecs)}
             </span>
           )}
@@ -108,17 +109,17 @@ export function ConnectorRow({ spot, tripId, leg, legIndex }: ConnectorRowProps)
           {TRAVEL_MODE_OPTIONS.map(({ mode, label, Icon }) => (
             <DropdownMenuItem
               key={mode}
-              onClick={() => handleModeChange(mode)}
+              onClick={() => onModeChange(mode)}
               className={effectiveMode === mode ? "bg-accent" : ""}
             >
               <Icon className="h-4 w-4" />
               {label}
             </DropdownMenuItem>
           ))}
-          {effectiveMode !== null && (
+          {allowReset && effectiveMode !== null && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleModeChange(null)}>
+              <DropdownMenuItem onClick={() => onModeChange(null)}>
                 Reset to day default
               </DropdownMenuItem>
             </>
@@ -126,5 +127,49 @@ export function ConnectorRow({ spot, tripId, leg, legIndex }: ConnectorRowProps)
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  );
+}
+
+export function ConnectorRow({ spot, tripId, leg, legIndex }: ConnectorRowProps) {
+  const updateSpot = useUpdateSpot();
+  const effectiveMode = spot.travelModeToNext ?? null;
+
+  return (
+    <ConnectorVisual
+      leg={leg}
+      legIndex={legIndex}
+      effectiveMode={effectiveMode}
+      onModeChange={(mode) =>
+        updateSpot.mutate({ spotId: spot.id, tripId, travelModeToNext: mode })
+      }
+      allowReset
+    />
+  );
+}
+
+// ─── Endpoint connector (hotel/arrival → spot or spot → hotel/departure) ──
+
+interface EndpointConnectorRowProps {
+  leg: RouteLeg | null;
+  legIndex: number;
+  /** Current day-level travel mode (endpoint legs always use the day default) */
+  currentMode: TravelMode;
+  onModeChange: (mode: TravelMode) => void;
+}
+
+export function EndpointConnectorRow({
+  leg,
+  legIndex,
+  currentMode,
+  onModeChange,
+}: EndpointConnectorRowProps) {
+  return (
+    <ConnectorVisual
+      leg={leg}
+      legIndex={legIndex}
+      effectiveMode={currentMode}
+      onModeChange={(mode) => mode && onModeChange(mode)}
+      allowReset={false}
+    />
   );
 }
