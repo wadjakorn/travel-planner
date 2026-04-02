@@ -17,6 +17,7 @@ import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import type { TripWithDays, TripDayWithSpots } from "@/types";
 import type { Spot } from "@/generated/prisma/client";
 import { useReorderSpots, useMoveSpot } from "@/hooks/use-trip";
+import { fmtDate } from "@/lib/format-date";
 import { DayCard } from "./day-card";
 import { AccommodationPanel } from "./accommodation-panel";
 import { ShareButton } from "@/components/trip/share-button";
@@ -130,8 +131,8 @@ export function ItineraryPanel({ trip }: ItineraryPanelProps) {
           <div className="min-w-0">
             <h2 className="text-lg font-semibold truncate">{trip.title}</h2>
             <p className="text-sm text-muted-foreground">
-              {new Date(trip.startDate).toLocaleDateString()} &mdash;{" "}
-              {new Date(trip.endDate).toLocaleDateString()}
+              {fmtDate(trip.startDate)} &mdash;{" "}
+              {fmtDate(trip.endDate)}
             </p>
           </div>
           <div className="flex items-center gap-1 shrink-0">

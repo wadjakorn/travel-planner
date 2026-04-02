@@ -6,6 +6,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import type { TripDayWithSpots } from "@/types";
 import type { TravelMode } from "@/generated/prisma/client";
 import { useTripStore, parseDurationSecs, formatDuration } from "@/stores/trip-store";
+import { fmtDayLabel } from "@/lib/format-date";
 import { SpotCard } from "./spot-card";
 import { ConnectorRow } from "./connector-row";
 import { AddSpotSearch } from "@/components/map/add-spot-search";
@@ -165,11 +166,7 @@ export function DayCard({ day, dayNumber, tripId }: DayCardProps) {
               )}
 
               <Badge variant="secondary">
-                {new Date(day.date).toLocaleDateString(undefined, {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                })}
+                {fmtDayLabel(day.date)}
               </Badge>
 
               {/* ⋮ Day actions */}

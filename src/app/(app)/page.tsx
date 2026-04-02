@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { TripWithDays } from "@/types";
+import { fmtDate } from "@/lib/format-date";
 
 export default async function HomePage() {
   const session = await auth();
@@ -51,8 +52,8 @@ export default async function HomePage() {
                 <CardHeader>
                   <CardTitle>{trip.title}</CardTitle>
                   <CardDescription>
-                    {new Date(trip.startDate).toLocaleDateString()} &mdash;{" "}
-                    {new Date(trip.endDate).toLocaleDateString()}
+                    {fmtDate(trip.startDate)} &mdash;{" "}
+                    {fmtDate(trip.endDate)}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useMapsLibrary } from "@vis.gl/react-google-maps";
 import type { TripWithDays, Accommodation } from "@/types";
+import { fmtDayLabel, fmtShortDate } from "@/lib/format-date";
 import {
   useAccommodationsQuery,
   useNightsQuery,
@@ -285,11 +286,7 @@ function NightsList({ tripId, nights, accommodations }: NightsListProps) {
         Nights
       </p>
       {nights.map((night) => {
-        const dateStr = new Date(night.date).toLocaleDateString(undefined, {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        });
+        const dateStr = fmtDayLabel(night.date);
         const nightDateKey = new Date(night.date).toISOString().split("T")[0];
         const assigned = (night as { accommodation: Accommodation | null }).accommodation;
 
