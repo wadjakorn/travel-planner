@@ -15,6 +15,8 @@ interface TripState {
   /** ID of the day whose route is shown — used to clear when day changes. */
   activeRouteDayId: string | null;
   isLoadingRoute: boolean;
+  /** Per-day route cache (session only, not persisted). Preserves loaded routes when switching days. */
+  routesByDay: Record<string, ActiveRoute>;
 
   // ── Optimisation ──────────────────────────────────────────────────
   /** @deprecated kept only for the auto-fill dialog after optimization */
@@ -42,6 +44,7 @@ interface TripState {
   setDarkMode: (dark: boolean) => void;
   clearRoute: () => void;
   setHoveredLegIndex: (i: number | null) => void;
+  clearRoutesForDay: (dayId: string) => void;
 }
 
 export const useTripStore = create<TripState>()(
@@ -57,16 +60,40 @@ export const useTripStore = create<TripState>()(
       mapZoom: 13,
       darkMode: false,
       hoveredLegIndex: null,
+      routesByDay: {},
 
       setSelectedDay: (dayId) =>
-        set({ selectedDayId: dayId, activeRoute: null, activeRouteDayId: null }),
+        set((s) => ({
+          selectedDayId: dayId,
+          activeRoute: dayId ? (s.routesByDay[dayId] ?? null) : null,
+          activeRouteDayId: dayId && s.routesByDay[dayId] ? dayId : null,
+        })),
       setSelectedSpot: (spotId) => set({ selectedSpotId: spotId }),
 
       setActiveRoute: (route, dayId = null) =>
-        set({ activeRoute: route, activeRouteDayId: dayId ?? null }),
+        set((s) => ({
+          activeRoute: route,
+          activeRouteDayId: dayId ?? null,
+          routesByDay: route && dayId
+            ? { ...s.routesByDay, [dayId]: route }
+            : s.routesByDay,
+        })),
       setIsLoadingRoute: (loading) => set({ isLoadingRoute: loading }),
       clearRoute: () =>
-        set({ activeRoute: null, activeRouteDayId: null }),
+        set((s) => {
+          const next = { ...s.routesByDay };
+          if (s.activeRouteDayId) delete next[s.activeRouteDayId];
+          return { activeRoute: null, activeRouteDayId: null, routesByDay: next };
+        }),
+      clearRoutesForDay: (dayId) =>
+        set((s) => {
+          const next = { ...s.routesByDay };
+          delete next[dayId];
+          return {
+            routesByDay: next,
+            ...(s.activeRouteDayId === dayId ? { activeRoute: null, activeRouteDayId: null } : {}),
+          };
+        }),
 
       setOptimizationMode: (mode) => set({ optimizationMode: mode }),
       setMapCenter: (center) => set({ mapCenter: center }),

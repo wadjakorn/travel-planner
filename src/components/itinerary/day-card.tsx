@@ -75,6 +75,7 @@ export function DayCard({ day, dayNumber, tripId, endpoints }: DayCardProps) {
     setActiveRoute,
     setIsLoadingRoute,
     clearRoute,
+    routesByDay,
   } = useTripStore();
 
   const isSelected = selectedDayId === day.id;
@@ -91,14 +92,17 @@ export function DayCard({ day, dayNumber, tripId, endpoints }: DayCardProps) {
   // Make the whole card a drop target so spots can be dragged into empty days
   const { setNodeRef } = useDroppable({ id: day.id });
 
-  // Build a map from startSpotId → leg for the current day's route
-  const legsByStartSpot = isDayRoute && activeRoute?.legs
-    ? new Map(activeRoute.legs.map((l) => [l.startSpotId, l]))
+  // Use the map-active route for the selected day; fall back to per-day memory cache for others
+  const dayRoute = isDayRoute ? activeRoute : (routesByDay[day.id] ?? null);
+
+  // Build a map from startSpotId → leg for this day's route
+  const legsByStartSpot = dayRoute?.legs
+    ? new Map(dayRoute.legs.map((l) => [l.startSpotId, l]))
     : new Map();
 
   // Route summary for this day
-  const routeSummary = isDayRoute && activeRoute ? (() => {
-    const travelSecs = activeRoute.legs.reduce(
+  const routeSummary = dayRoute ? (() => {
+    const travelSecs = dayRoute.legs.reduce(
       (sum, l) => sum + parseDurationSecs(l.duration),
       0
     );
