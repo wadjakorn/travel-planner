@@ -22,6 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuLabel,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import {
   ChevronDown,
@@ -313,7 +314,9 @@ function NightsList({ tripId, nights, accommodations }: NightsListProps) {
                 )}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="bottom">
-                <DropdownMenuLabel>Assign accommodation</DropdownMenuLabel>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Assign accommodation</DropdownMenuLabel>
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 {accommodations.map((acc) => (
                   <DropdownMenuItem

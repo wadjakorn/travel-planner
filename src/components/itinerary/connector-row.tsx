@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuLabel,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { Car, PersonStanding, Train, Bike, ArrowDown } from "lucide-react";
 
@@ -100,7 +101,9 @@ export function ConnectorRow({ spot, tripId, leg, legIndex }: ConnectorRowProps)
           )}
         </DropdownMenuTrigger>
         <DropdownMenuContent side="right" align="start" sideOffset={4}>
-          <DropdownMenuLabel>Travel mode</DropdownMenuLabel>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Travel mode</DropdownMenuLabel>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
           {TRAVEL_MODE_OPTIONS.map(({ mode, label, Icon }) => (
             <DropdownMenuItem

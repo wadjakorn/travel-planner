@@ -19,6 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuLabel,
+  DropdownMenuGroup,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
@@ -223,9 +224,11 @@ export function DayCard({ day, dayNumber, tripId }: DayCardProps) {
                       Default Travel Mode
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent>
-                      <DropdownMenuLabel>
-                        Current: {day.defaultTravelMode}
-                      </DropdownMenuLabel>
+                      <DropdownMenuGroup>
+                        <DropdownMenuLabel>
+                          Current: {day.defaultTravelMode}
+                        </DropdownMenuLabel>
+                      </DropdownMenuGroup>
                       <DropdownMenuSeparator />
                       {TRAVEL_MODE_OPTIONS.map(({ mode, label, Icon }) => (
                         <DropdownMenuItem
