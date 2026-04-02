@@ -2,7 +2,7 @@ import { getSession as auth } from "@/lib/get-session";
 import { prisma } from "@/lib/prisma";
 import { updateSpot, deleteSpot } from "@/services/spot.service";
 import { NextResponse } from "next/server";
-import type { SpotType } from "@/generated/prisma/client";
+import type { SpotType, TravelMode } from "@/generated/prisma/client";
 
 interface RouteParams {
   params: Promise<{ spotId: string }>;
@@ -16,6 +16,14 @@ const VALID_SPOT_TYPES: SpotType[] = [
   "SHOPPING",
   "TRANSPORT",
   "CUSTOM",
+];
+
+const VALID_TRAVEL_MODES: (TravelMode | null)[] = [
+  "CAR",
+  "WALK",
+  "TRANSIT",
+  "BICYCLE",
+  null,
 ];
 
 /** Verify the spot belongs to the requesting user via trip ownership. */
@@ -41,13 +49,16 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 
   const body = await request.json();
-  const { name, type, address, notes, stayMinutes } = body;
+  const { name, type, address, notes, stayMinutes, travelModeToNext } = body;
 
   if (name !== undefined && (typeof name !== "string" || name.trim().length === 0)) {
     return NextResponse.json({ error: "name must be a non-empty string" }, { status: 400 });
   }
   if (type !== undefined && !VALID_SPOT_TYPES.includes(type)) {
     return NextResponse.json({ error: "invalid spot type" }, { status: 400 });
+  }
+  if (travelModeToNext !== undefined && !VALID_TRAVEL_MODES.includes(travelModeToNext)) {
+    return NextResponse.json({ error: "invalid travelModeToNext" }, { status: 400 });
   }
 
   const updated = await updateSpot(spotId, {
@@ -56,6 +67,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     ...(address !== undefined ? { address } : {}),
     ...(notes !== undefined ? { notes } : {}),
     ...(stayMinutes !== undefined ? { stayMinutes } : {}),
+    ...(travelModeToNext !== undefined ? { travelModeToNext } : {}),
   });
 
   return NextResponse.json(updated);

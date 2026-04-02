@@ -60,47 +60,96 @@ model VerificationToken {
 // ─── Domain Models ────────────────────────────────────────
 
 model Trip {
-  id          String    @id @default(cuid())
-  title       String
-  startDate   DateTime
-  endDate     DateTime
-  userId      String
-  shareToken  String?   @unique
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  days        TripDay[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String    @id @default(cuid())
+  title      String
+  startDate  DateTime
+  endDate    DateTime
+  userId     String
+  shareToken String?   @unique
+
+  // Trip-level arrival / departure (optional)
+  arrivalName      String?
+  arrivalAddress   String?
+  arrivalLat       Float?
+  arrivalLng       Float?
+  departureName    String?
+  departureAddress String?
+  departureLat     Float?
+  departureLng     Float?
+
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  days           TripDay[]
+  accommodations Accommodation[]
+  nights         NightAccommodation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
 }
 
 model TripDay {
-  id        String   @id @default(cuid())
-  date      DateTime @db.Date
-  sortOrder Int
-  tripId    String
-  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  spots     Spot[]
+  id                String      @id @default(cuid())
+  date              DateTime    @db.Date
+  sortOrder         Int
+  tripId            String
+  defaultTravelMode TravelMode  @default(CAR)
+  trip              Trip        @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  spots             Spot[]
 
   @@index([tripId])
 }
 
 model Spot {
-  id          String   @id @default(cuid())
-  name        String
-  placeId     String?
-  lat         Float
-  lng         Float
-  type        SpotType
-  address     String?
-  notes       String?
-  sortOrder   Int
-  stayMinutes Int?
-  tripDayId   String
-  tripDay     TripDay  @relation(fields: [tripDayId], references: [id], onDelete: Cascade)
+  id               String     @id @default(cuid())
+  name             String
+  placeId          String?
+  lat              Float
+  lng              Float
+  type             SpotType
+  address          String?
+  notes            String?
+  sortOrder        Int
+  stayMinutes      Int        @default(60)
+  travelModeToNext TravelMode?
+  tripDayId        String
+  tripDay          TripDay    @relation(fields: [tripDayId], references: [id], onDelete: Cascade)
 
   @@index([tripDayId])
 }
+
+model Accommodation {
+  id      String  @id @default(cuid())
+  name    String
+  address String?
+  lat     Float
+  lng     Float
+  placeId String?
+  tripId  String
+  trip    Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  nights  NightAccommodation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tripId])
+}
+
+/// One record per night of the trip. date = the night's start date
+/// (e.g. Apr 13 = the night between Apr 13 and Apr 14).
+model NightAccommodation {
+  id              String         @id @default(cuid())
+  date            DateTime       @db.Date
+  tripId          String
+  accommodationId String?
+  trip            Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  accommodation   Accommodation? @relation(fields: [accommodationId], references: [id], onDelete: SetNull)
+
+  @@unique([tripId, date])
+  @@index([tripId])
+}
+
+// ─── Enums ────────────────────────────────────────────────
 
 enum SpotType {
   ATTRACTION
@@ -110,4 +159,11 @@ enum SpotType {
   SHOPPING
   TRANSPORT
   CUSTOM
+}
+
+enum TravelMode {
+  CAR
+  WALK
+  TRANSIT
+  BICYCLE
 }

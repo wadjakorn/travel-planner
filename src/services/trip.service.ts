@@ -1,15 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import type { CreateTripInput, TripWithDays } from "@/types";
 
+const TRIP_INCLUDE = {
+  days: {
+    include: { spots: { orderBy: { sortOrder: "asc" as const } } },
+    orderBy: { sortOrder: "asc" as const },
+  },
+  accommodations: { orderBy: { createdAt: "asc" as const } },
+  nights: { orderBy: { date: "asc" as const } },
+} as const;
+
 export async function getUserTrips(userId: string) {
   return prisma.trip.findMany({
     where: { userId },
-    include: {
-      days: {
-        include: { spots: { orderBy: { sortOrder: "asc" } } },
-        orderBy: { sortOrder: "asc" },
-      },
-    },
+    include: TRIP_INCLUDE,
     orderBy: { updatedAt: "desc" },
   });
 }
@@ -20,13 +24,8 @@ export async function getTripById(
 ): Promise<TripWithDays | null> {
   return prisma.trip.findFirst({
     where: { id: tripId, userId },
-    include: {
-      days: {
-        include: { spots: { orderBy: { sortOrder: "asc" } } },
-        orderBy: { sortOrder: "asc" },
-      },
-    },
-  });
+    include: TRIP_INCLUDE,
+  }) as Promise<TripWithDays | null>;
 }
 
 export async function createTrip(userId: string, input: CreateTripInput) {
@@ -37,6 +36,9 @@ export async function createTrip(userId: string, input: CreateTripInput) {
     Math.ceil(
       (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
     ) + 1;
+
+  // Number of nights = dayCount - 1 (last day has no night)
+  const nightCount = dayCount - 1;
 
   return prisma.trip.create({
     data: {
@@ -50,13 +52,13 @@ export async function createTrip(userId: string, input: CreateTripInput) {
           sortOrder: i,
         })),
       },
-    },
-    include: {
-      days: {
-        include: { spots: true },
-        orderBy: { sortOrder: "asc" },
+      nights: {
+        create: Array.from({ length: nightCount }, (_, i) => ({
+          date: new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000),
+        })),
       },
     },
+    include: TRIP_INCLUDE,
   });
 }
 
@@ -90,11 +92,6 @@ export async function getTripByShareToken(
 ): Promise<TripWithDays | null> {
   return prisma.trip.findFirst({
     where: { shareToken: token },
-    include: {
-      days: {
-        include: { spots: { orderBy: { sortOrder: "asc" } } },
-        orderBy: { sortOrder: "asc" },
-      },
-    },
-  });
+    include: TRIP_INCLUDE,
+  }) as Promise<TripWithDays | null>;
 }

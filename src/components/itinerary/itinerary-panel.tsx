@@ -16,31 +16,20 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import type { TripWithDays, TripDayWithSpots } from "@/types";
 import type { Spot } from "@/generated/prisma/client";
-import { useTripStore } from "@/stores/trip-store";
-import { useReorderSpots, useMoveSpot, useOptimizeRoute } from "@/hooks/use-trip";
+import { useReorderSpots, useMoveSpot } from "@/hooks/use-trip";
 import { DayCard } from "./day-card";
+import { AccommodationPanel } from "./accommodation-panel";
 import { ShareButton } from "@/components/trip/share-button";
 import { Button } from "@/components/ui/button";
-import { Loader2, Route, Clock, MapPin, CalendarArrowDown } from "lucide-react";
+import { CalendarArrowDown } from "lucide-react";
 
 interface ItineraryPanelProps {
   trip: TripWithDays;
 }
 
 export function ItineraryPanel({ trip }: ItineraryPanelProps) {
-  const {
-    selectedDayId,
-    optimizationMode,
-    setOptimizationMode,
-    isOptimizing,
-    setIsOptimizing,
-    optimizedRoute,
-    setOptimizedRoute,
-  } = useTripStore();
-
   const reorderSpots = useReorderSpots();
   const moveSpot = useMoveSpot();
-  const optimizeRoute = useOptimizeRoute();
 
   const [localDays, setLocalDays] = useState<TripDayWithSpots[]>(trip.days);
   const [activeSpot, setActiveSpot] = useState<Spot | null>(null);
@@ -133,32 +122,6 @@ export function ItineraryPanel({ trip }: ItineraryPanelProps) {
     }
   }
 
-  function handleOptimize() {
-    const dayId = selectedDayId ?? trip.days[0]?.id;
-    if (!dayId) return;
-    setIsOptimizing(true);
-    setOptimizedRoute(null);
-    optimizeRoute.mutate(
-      { tripId: trip.id, dayId, mode: optimizationMode },
-      {
-        onSuccess: (route) => {
-          setOptimizedRoute(route);
-          setIsOptimizing(false);
-        },
-        onError: () => setIsOptimizing(false),
-      }
-    );
-  }
-
-  // Format duration like "2h 15m" from "8100s"
-  function fmtDuration(raw: string) {
-    const secs = parseInt(raw.replace("s", ""), 10);
-    if (isNaN(secs)) return raw;
-    const h = Math.floor(secs / 3600);
-    const m = Math.round((secs % 3600) / 60);
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
-  }
-
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -174,87 +137,53 @@ export function ItineraryPanel({ trip }: ItineraryPanelProps) {
           <div className="flex items-center gap-1 shrink-0">
             <ShareButton tripId={trip.id} shareToken={trip.shareToken} />
             <a href={`/api/trips/${trip.id}/export`} download>
-              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Export to calendar">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label="Export to calendar"
+              >
                 <CalendarArrowDown className="h-4 w-4" />
               </Button>
             </a>
           </div>
         </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">Optimize:</span>
-          <Button
-            size="sm"
-            variant={optimizationMode === "time" ? "default" : "outline"}
-            onClick={() => setOptimizationMode("time")}
-            disabled={isOptimizing}
-          >
-            Save Time
-          </Button>
-          <Button
-            size="sm"
-            variant={optimizationMode === "comfort" ? "default" : "outline"}
-            onClick={() => setOptimizationMode("comfort")}
-            disabled={isOptimizing}
-          >
-            Comfortable
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={handleOptimize}
-            disabled={isOptimizing}
-          >
-            {isOptimizing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Route className="h-3.5 w-3.5" />
-            )}
-            <span className="ml-1.5">Go</span>
-          </Button>
-        </div>
-
-        {/* Route stats */}
-        {optimizedRoute && (
-          <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {fmtDuration(optimizedRoute.totalDuration)}
-            </span>
-            <span className="flex items-center gap-1">
-              <MapPin className="h-3 w-3" />
-              {optimizedRoute.totalDistance}
-            </span>
-          </div>
-        )}
       </div>
 
-      {/* Day list */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={onDragStart}
-          onDragOver={onDragOver}
-          onDragEnd={onDragEnd}
-        >
-          {localDays.map((day, index) => (
-            <DayCard
-              key={day.id}
-              day={day}
-              dayNumber={index + 1}
-              tripId={trip.id}
-            />
-          ))}
+      {/* Scrollable body: accommodation panel + day list */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Accommodation panel */}
+        <div className="border-b">
+          <AccommodationPanel trip={trip} />
+        </div>
 
-          <DragOverlay>
-            {activeSpot ? (
-              <div className="rounded-md border bg-background shadow-xl px-3 py-2 text-sm font-medium cursor-grabbing">
-                {activeSpot.name}
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+        {/* Day list with drag-and-drop */}
+        <div className="p-4 space-y-4">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDragEnd={onDragEnd}
+          >
+            {localDays.map((day, index) => (
+              <DayCard
+                key={day.id}
+                day={day}
+                dayNumber={index + 1}
+                tripId={trip.id}
+              />
+            ))}
+
+            <DragOverlay>
+              {activeSpot ? (
+                <div className="rounded-md border bg-background shadow-xl px-3 py-2 text-sm font-medium cursor-grabbing">
+                  {activeSpot.name}
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        </div>
       </div>
     </div>
   );
