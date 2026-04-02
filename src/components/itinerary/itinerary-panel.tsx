@@ -34,7 +34,7 @@ interface ItineraryPanelProps {
 export function ItineraryPanel({ trip }: ItineraryPanelProps) {
   const reorderSpots = useReorderSpots();
   const moveSpot = useMoveSpot();
-  const { activeRoute, selectedDayId, setSelectedDay, setActiveRoute, clearRoute } = useTripStore();
+  const { activeRoute, selectedDayId, setSelectedDay, setActiveRoute, clearRoute, routesByDay } = useTripStore();
 
   const [localDays, setLocalDays] = useState<TripDayWithSpots[]>(trip.days);
   const [activeSpot, setActiveSpot] = useState<Spot | null>(null);
@@ -69,6 +69,27 @@ export function ItineraryPanel({ trip }: ItineraryPanelProps) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.id]);
+
+  // Auto-restore route from DB cache when switching to a day not yet in memory
+  useEffect(() => {
+    if (!selectedDayId) return;
+    if (routesByDay[selectedDayId]) return; // already in memory, setSelectedDay restores it
+
+    const dayIndex = trip.days.findIndex((d) => d.id === selectedDayId);
+    if (dayIndex < 0) return;
+    const day = trip.days[dayIndex];
+    const ep = resolveDayEndpoints(trip, dayIndex);
+    const startPoint = ep.startLat != null ? { lat: ep.startLat, lng: ep.startLng! } : null;
+    const endPoint = ep.endLat != null ? { lat: ep.endLat, lng: ep.endLng! } : null;
+
+    if (!isCacheValidClient(day, startPoint, endPoint)) return;
+
+    const cached = buildRouteFromCacheClient(day, startPoint, endPoint);
+    if (cached) {
+      setActiveRoute(cached, selectedDayId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDayId]);
 
   if (localDays !== trip.days && !activeSpot) {
     setLocalDays(trip.days);
