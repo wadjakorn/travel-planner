@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
+import { useMapsLibrary } from "@vis.gl/react-google-maps";
 import type { TripWithDays, Accommodation } from "@/types";
 import {
   useAccommodationsQuery,
@@ -29,6 +31,8 @@ import {
   Trash2,
   Navigation,
   MapPin,
+  Search,
+  X,
 } from "lucide-react";
 
 interface AccommodationPanelProps {
@@ -362,35 +366,192 @@ function NightsList({ tripId, nights, accommodations }: NightsListProps) {
   );
 }
 
-// ─── Add accommodation form ────────────────────────────────────────────────
+// ─── Add accommodation — Google Places search ─────────────────────────────
+
+interface PlacePick {
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  placeId: string;
+}
+
+interface Suggestion {
+  placeId: string;
+  mainText: string;
+  secondaryText: string;
+}
+
+interface DropdownRect {
+  top: number;
+  left: number;
+  width: number;
+}
 
 function AddAccommodationForm({ tripId }: { tripId: string }) {
-  const [isAdding, setIsAdding] = useState(false);
-  const [name, setName] = useState("");
-  const [address, setAddress] = useState("");
+  const placesLib = useMapsLibrary("places");
   const createAccommodation = useCreateAccommodation();
 
-  async function handleSubmit() {
-    if (!name.trim()) return;
-    await createAccommodation.mutateAsync({
-      tripId,
-      name: name.trim(),
-      address: address.trim() || undefined,
-      lat: 0,
-      lng: 0,
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dropdownRect, setDropdownRect] = useState<DropdownRect | null>(null);
+
+  const inputWrapperRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const measureInput = useCallback(() => {
+    if (!inputWrapperRef.current) return;
+    const rect = inputWrapperRef.current.getBoundingClientRect();
+    setDropdownRect({
+      top: rect.bottom + window.scrollY + 4,
+      left: rect.left + window.scrollX,
+      width: rect.width,
     });
-    setName("");
-    setAddress("");
-    setIsAdding(false);
+  }, []);
+
+  // Fetch suggestions as the user types
+  useEffect(() => {
+    if (!placesLib || query.length < 2) {
+      setSuggestions([]);
+      setDropdownOpen(false);
+      return;
+    }
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+    measureInput();
+
+    (async () => {
+      try {
+        const { suggestions: raw } =
+          await placesLib.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+            input: query,
+            // Bias toward lodging results
+            includedPrimaryTypes: ["lodging", "hotel"],
+          }).catch(() =>
+            // Fallback without type filter if it fails
+            placesLib.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+              input: query,
+            })
+          );
+
+        setSuggestions(
+          raw
+            .map((s) => s.placePrediction)
+            .filter(Boolean)
+            .map((p) => ({
+              placeId: p!.placeId,
+              mainText: p!.mainText?.toString() ?? "",
+              secondaryText: p!.secondaryText?.toString() ?? "",
+            }))
+        );
+        setDropdownOpen(true);
+      } catch {
+        setSuggestions([]);
+        setDropdownOpen(false);
+      }
+    })();
+  }, [query, placesLib, measureInput]);
+
+  // Re-measure on scroll/resize
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const update = () => measureInput();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [dropdownOpen, measureInput]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleMouseDown(e: MouseEvent) {
+      const target = e.target as Node;
+      const insideInput = inputWrapperRef.current?.contains(target);
+      const insideDropdown = document
+        .getElementById("accommodation-search-dropdown")
+        ?.contains(target);
+      if (!insideInput && !insideDropdown) setDropdownOpen(false);
+    }
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, []);
+
+  async function selectSuggestion(suggestion: Suggestion) {
+    if (!placesLib) return;
+    try {
+      const place = new placesLib.Place({ id: suggestion.placeId });
+      await place.fetchFields({
+        fields: ["displayName", "location", "formattedAddress", "id"],
+      });
+      if (!place.location) return;
+
+      await createAccommodation.mutateAsync({
+        tripId,
+        name: place.displayName ?? suggestion.mainText,
+        address: place.formattedAddress ?? suggestion.secondaryText,
+        lat: place.location.lat(),
+        lng: place.location.lng(),
+        placeId: place.id ?? suggestion.placeId,
+      });
+
+      setQuery("");
+      setSuggestions([]);
+      setDropdownOpen(false);
+      setIsOpen(false);
+    } catch {
+      // Place fetch failed
+    }
   }
 
-  if (!isAdding) {
+  const dropdown =
+    dropdownOpen && suggestions.length > 0 && dropdownRect
+      ? createPortal(
+          <ul
+            id="accommodation-search-dropdown"
+            style={{
+              position: "absolute",
+              top: dropdownRect.top,
+              left: dropdownRect.left,
+              width: dropdownRect.width,
+              zIndex: 9999,
+            }}
+            className="rounded-md border bg-popover shadow-lg"
+          >
+            {suggestions.map((s) => (
+              <li key={s.placeId}>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start rounded-none px-3 py-2 h-auto text-left"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    selectSuggestion(s);
+                  }}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{s.mainText}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {s.secondaryText}
+                    </p>
+                  </div>
+                </Button>
+              </li>
+            ))}
+          </ul>,
+          document.body
+        )
+      : null;
+
+  if (!isOpen) {
     return (
       <Button
         variant="outline"
         size="sm"
         className="w-full text-xs h-7"
-        onClick={() => setIsAdding(true)}
+        onClick={() => setIsOpen(true)}
       >
         <Plus className="h-3.5 w-3.5 mr-1" />
         Add accommodation
@@ -400,43 +561,46 @@ function AddAccommodationForm({ tripId }: { tripId: string }) {
 
   return (
     <div className="space-y-1.5 rounded-md border p-3">
-      <p className="text-xs font-medium">New accommodation</p>
-      <Input
-        autoFocus
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Name (e.g. Hotel Grand)"
-        className="h-7 text-xs"
-        onKeyDown={(e) => e.key === "Escape" && setIsAdding(false)}
-      />
-      <Input
-        value={address}
-        onChange={(e) => setAddress(e.target.value)}
-        placeholder="Address (optional)"
-        className="h-7 text-xs"
-        onKeyDown={(e) => {
-          if (e.key === "Enter") handleSubmit();
-          if (e.key === "Escape") setIsAdding(false);
-        }}
-      />
-      <div className="flex gap-1">
-        <Button
-          size="sm"
-          className="flex-1 h-7 text-xs"
-          onClick={handleSubmit}
-          disabled={createAccommodation.isPending || !name.trim()}
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium">Search for accommodation</p>
+        <button
+          className="text-muted-foreground hover:text-foreground"
+          onClick={() => {
+            setIsOpen(false);
+            setQuery("");
+            setDropdownOpen(false);
+          }}
         >
-          Save
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 px-2"
-          onClick={() => setIsAdding(false)}
-        >
-          Cancel
-        </Button>
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
+
+      <div ref={inputWrapperRef} className="relative">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Escape" && setIsOpen(false)}
+          placeholder="Hotel name or address…"
+          className="pl-7 pr-7 h-7 text-xs"
+        />
+        {query && (
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setQuery("");
+              setSuggestions([]);
+              setDropdownOpen(false);
+            }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
+      {dropdown}
     </div>
   );
 }

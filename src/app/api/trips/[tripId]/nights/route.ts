@@ -3,6 +3,7 @@ import { getTripById } from "@/services/trip.service";
 import {
   getNightsWithAccommodations,
   setNightAccommodation,
+  syncNightsForTrip,
   updateArrivalDeparture,
 } from "@/services/accommodation.service";
 import { NextResponse } from "next/server";
@@ -23,6 +24,10 @@ export async function GET(_request: Request, { params }: RouteParams) {
   if (!trip) {
     return NextResponse.json({ error: "Trip not found" }, { status: 404 });
   }
+
+  // Auto-sync NightAccommodation rows for trips created before this feature
+  // was added (or when trip dates change). This is idempotent — upsert only.
+  await syncNightsForTrip(tripId, trip.startDate, trip.endDate);
 
   const nights = await getNightsWithAccommodations(tripId);
   return NextResponse.json(nights);
